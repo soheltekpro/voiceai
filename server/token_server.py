@@ -49,11 +49,15 @@ class EndpointTokenResponse(BaseModel):
 
 
 def _get_livekit_url() -> str:
-    url = os.getenv("LIVEKIT_URL", "").strip()
+    """URL returned to the browser. Use LIVEKIT_PUBLIC_URL when proxying (e.g. wss://voiceai.tittu.in)."""
+    url = (
+        os.getenv("LIVEKIT_PUBLIC_URL", "").strip()
+        or os.getenv("LIVEKIT_URL", "").strip()
+    )
     if not url:
         raise HTTPException(
             status_code=500,
-            detail="LIVEKIT_URL is not set. Add it to your .env.",
+            detail="LIVEKIT_URL or LIVEKIT_PUBLIC_URL is not set. Add it to your .env.",
         )
     return url.rstrip("/")
 
