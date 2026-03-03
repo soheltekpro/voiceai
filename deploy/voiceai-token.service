@@ -11,6 +11,8 @@ Environment=PATH=/var/www/voiceai/.venv/bin
 ExecStart=/var/www/voiceai/.venv/bin/python -m uvicorn server.token_server:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

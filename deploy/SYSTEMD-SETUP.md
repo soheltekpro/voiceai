@@ -52,7 +52,7 @@ sudo nano /var/www/voiceai/.env
 Set (or fix) this line so it uses **your server IP** and port **7880**:
 
 ```env
-LIVEKIT_URL=ws://YOUR_SERVER_IP:7880
+LIVEKIT_URL=ws://47.237.8.24:7880
 ```
 
 Example: if your server IP is `172.17.20.207`:
@@ -119,33 +119,48 @@ sudo ufw reload
 
 ---
 
-## Step 7: Nginx for IP-only access (serve frontend + proxy /api)
+## Step 7: Apache for IP-only access (serve frontend + proxy /api)
 
-You need Nginx to serve the built frontend and send `/api` to the token server. Use your **server IP** as `server_name` (or `_` for default).
+Your server uses **Apache** on port 80. You need to add a VirtualHost that serves the Voice AI frontend and proxies `/api` to the token server.
 
-Create the site config:
-
-```bash
-sudo cp /var/www/voiceai/deploy/nginx-voiceai.conf.example /etc/nginx/sites-available/voiceai
-sudo nano /etc/nginx/sites-available/voiceai
-```
-
-Change the line `server_name voiceai.tekprocloud.com;` to your IP:
-
-```nginx
-server_name YOUR_SERVER_IP;
-```
-
-Example: `server_name 172.17.20.207;`  
-Or use `server_name _;` to make this the default server for any request to this machine.
-
-Save and exit. Enable the site and reload Nginx:
+### 7.1 Enable required Apache modules
 
 ```bash
-sudo ln -sf /etc/nginx/sites-available/voiceai /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+sudo a2enmod proxy proxy_http rewrite
 ```
+
+### 7.2 Create the Voice AI site config
+
+```bash
+sudo cp /var/www/voiceai/deploy/apache-voiceai.conf.example /etc/apache2/sites-available/voiceai.conf
+sudo nano /etc/apache2/sites-available/voiceai.conf
+```
+
+Replace `YOUR_SERVER_IP` with your server’s IP (e.g. `172.17.20.207`) so this site is used when someone opens `http://YOUR_SERVER_IP`:
+
+```apache
+ServerName 172.17.20.207
+```
+
+If you already have a default site and want Voice AI only when the request has no other matching host, you can use:
+
+```apache
+ServerName _
+```
+
+Save and exit (Ctrl+O, Enter, Ctrl+X).
+
+### 7.3 Enable the site and reload Apache
+
+```bash
+sudo a2ensite voiceai.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+If `configtest` reports any error, fix the config before reloading.
+
+**Note:** If you have other sites (e.g. by domain name), Apache will choose the VirtualHost by `ServerName`. Using your server IP as `ServerName` makes this Voice AI site respond when users open `http://YOUR_SERVER_IP`. If you prefer to serve Voice AI on a different path or port, the config can be adjusted.
 
 ---
 

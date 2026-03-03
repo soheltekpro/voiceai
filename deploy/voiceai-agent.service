@@ -12,6 +12,8 @@ EnvironmentFile=/var/www/voiceai/.env
 ExecStart=/var/www/voiceai/.venv/bin/python agent.py start
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

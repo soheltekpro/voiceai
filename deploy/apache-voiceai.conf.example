@@ -1,0 +1,27 @@
+# Apache config for Voice AI (IP-only or with ServerName).
+# Copy to /etc/apache2/sites-available/voiceai.conf and enable with a2ensite.
+# Replace YOUR_SERVER_IP with your server IP (e.g. 172.17.20.207) if you want this to respond when users open http://YOUR_SERVER_IP
+
+<VirtualHost *:80>
+    ServerName YOUR_SERVER_IP
+    # Or use the same as your other default (e.g. leave blank to use as default):
+    # ServerName _
+
+    DocumentRoot /var/www/voiceai/frontend/dist
+
+    <Directory /var/www/voiceai/frontend/dist>
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+        # SPA: serve index.html for any path that is not a file
+        FallbackResource /index.html
+    </Directory>
+
+    # Proxy /api to the token server (running on 127.0.0.1:8000)
+    ProxyPreserveHost On
+    ProxyPass /api/ http://127.0.0.1:8000/
+    ProxyPassReverse /api/ http://127.0.0.1:8000/
+
+    ErrorLog ${APACHE_LOG_DIR}/voiceai-error.log
+    CustomLog ${APACHE_LOG_DIR}/voiceai-access.log combined
+</VirtualHost>
