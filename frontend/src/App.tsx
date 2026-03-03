@@ -120,7 +120,7 @@ function AppContent() {
     <SessionProvider session={session}>
       <div data-lk-theme="default" className="app">
         <header className="header">
-          <h1>Devanshu SaaS — Voice Agent</h1>
+          <h1>Tittu — Voice Agent</h1>
         </header>
         <VoiceAgentView onRetry={handleRetry} />
         <ControlBar

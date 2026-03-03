@@ -85,7 +85,7 @@ Then add `AI_PROVIDER` and the relevant API key(s).
 | `AI_PROVIDER`  | `OPENAI`  | Use OpenAI Realtime (gpt-4o-realtime-preview) |
 |                | `GEMINI`  | Use Gemini Live (gemini-2.5-flash)   |
 
-The agent uses **Silero VAD** for voice activity detection and interruption handling, and a fixed system instruction for Devanshu's SaaS business assistant.
+The agent uses **Silero VAD** for voice activity detection and interruption handling, and a fixed system instruction for Tittu's SaaS business assistant.
 
 ---
 
