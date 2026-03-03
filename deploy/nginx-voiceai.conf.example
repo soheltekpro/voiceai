@@ -1,0 +1,27 @@
+# Copy to /etc/nginx/sites-available/voiceai and enable.
+# For IP-only access: use your server IP as server_name (e.g. 172.17.20.207) or use _ for default.
+
+upstream voiceai_token {
+    server 127.0.0.1:8000;
+}
+
+server {
+    listen 80;
+    server_name _;   # _ = default; or use your server IP e.g. 172.17.20.207
+
+    root /var/www/voiceai/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://voiceai_token/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Voice AI Agent (LiveKit worker)
+After=network.target livekit-voiceai.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/voiceai
+Environment=PATH=/var/www/voiceai/.venv/bin
+EnvironmentFile=/var/www/voiceai/.env
+ExecStart=/var/www/voiceai/.venv/bin/python agent.py start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

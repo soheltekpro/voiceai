@@ -1,0 +1,14 @@
+[Unit]
+Description=LiveKit Server (Voice AI)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/livekit-server --dev --bind 0.0.0.0
+Restart=always
+RestartSec=5
+User=www-data
+WorkingDirectory=/var/www/voiceai
+
+[Install]
+WantedBy=multi-user.target

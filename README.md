@@ -91,7 +91,7 @@ The agent uses **Silero VAD** for voice activity detection and interruption hand
 
 ## Self-hosted deployment (your own server)
 
-You can run the entire system on your own infrastructure **without LiveKit Cloud**:
+You can run the entire system on your own infrastructure **without LiveKit Cloud**. For **Ubuntu server** (e.g. under `/var/www` with Nginx and systemd), see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 1. **Run a LiveKit server** (open-source) on your machine or VM.
 2. **Run the Python agent** so it connects to that server.
