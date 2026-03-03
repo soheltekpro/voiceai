@@ -101,6 +101,8 @@ function VoiceAgentView({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+const isSecureContext = typeof window !== 'undefined' && window.isSecureContext;
+
 function AppContent() {
   const session = useSession(tokenSource);
 
@@ -122,6 +124,16 @@ function AppContent() {
         <header className="header">
           <h1>Tittu — Voice Agent</h1>
         </header>
+        {!isSecureContext && (
+          <div className="secure-context-banner" role="alert">
+            <strong>Microphone not available:</strong> This page is not served over HTTPS.
+            Browsers only allow microphone access on <code>https://</code> or <code>localhost</code>.
+            <ul>
+              <li><strong>Production:</strong> Serve this app over HTTPS (e.g. with a domain and SSL certificate).</li>
+              <li><strong>Chrome testing only:</strong> Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add this page&apos;s URL (e.g. <code>http://YOUR_IP</code>), enable, then relaunch Chrome.</li>
+            </ul>
+          </div>
+        )}
         <VoiceAgentView onRetry={handleRetry} />
         <ControlBar
           controls={{

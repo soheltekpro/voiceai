@@ -1,0 +1,17 @@
+# Snippet to add to your HTTPS VirtualHost for voiceai.tittu.in (e.g. after Certbot).
+# This proxies LiveKit WebSocket over HTTPS so you don't need TLS on port 7880.
+#
+# 1. Enable WebSocket proxy module:
+#    sudo a2enmod proxy_wstunnel
+#
+# 2. In your <VirtualHost *:443> for voiceai.tittu.in, add these lines BEFORE the closing </VirtualHost>:
+#
+#    # LiveKit WebSocket: proxy /rtc to local LiveKit (plain ws on 7880)
+#    ProxyPreserveHost On
+#    ProxyPass /rtc ws://127.0.0.1:7880/rtc
+#    ProxyPassReverse /rtc ws://127.0.0.1:7880/rtc
+#
+# 3. In .env set (no port — browser uses 443):
+#    LIVEKIT_URL=wss://voiceai.tittu.in
+#
+# 4. Restart: sudo systemctl restart voiceai-token voiceai-agent && sudo systemctl reload apache2
