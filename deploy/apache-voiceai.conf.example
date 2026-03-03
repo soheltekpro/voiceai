@@ -17,10 +17,10 @@
         FallbackResource /index.html
     </Directory>
 
-    # Proxy /api to the token server (running on 127.0.0.1:8000)
+    # Proxy /api to the token server (path must stay /api/token on backend)
     ProxyPreserveHost On
-    ProxyPass /api/ http://127.0.0.1:8000/
-    ProxyPassReverse /api/ http://127.0.0.1:8000/
+    ProxyPass /api http://127.0.0.1:8000/api
+    ProxyPassReverse /api http://127.0.0.1:8000/api
 
     ErrorLog ${APACHE_LOG_DIR}/voiceai-error.log
     CustomLog ${APACHE_LOG_DIR}/voiceai-access.log combined
