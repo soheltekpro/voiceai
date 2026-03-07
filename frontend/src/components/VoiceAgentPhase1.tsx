@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Phone, PhoneOff } from 'lucide-react';
 import { Room, RoomEvent } from 'livekit-client';
 import { apiGet, apiPost } from '../api/client';
 import type { Agent } from '../admin/types';
@@ -434,21 +435,25 @@ export function VoiceAgentPhase1() {
   }, []); // run cleanup only on unmount so we don't close the socket when state updates during connect
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-lg rounded-xl bg-slate-800/80 border border-slate-600/50 p-6 shadow-xl">
-        <h1 className="text-xl font-semibold text-center text-slate-50 mb-2">Voice AI Agent</h1>
-        <p className="text-sm text-slate-400 text-center mb-6">
-          Pipeline (STT→LLM→TTS) or Realtime V2V · Lifecycle events
+    <div className="space-y-6">
+      {/* Page header */}
+      <header>
+        <h1 className="text-2xl font-bold text-white">Test Voice Agent</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Pipeline (STT→LLM→TTS) or Realtime V2V — connect and talk to your agent.
         </p>
+      </header>
 
-        {/* Agent selector */}
-        <div className="mb-4">
+      {/* Two column grid: call widget (left) + transcript (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: Call widget — phone-like card */}
+        <div className="rounded-xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 p-6 shadow-lg">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-2">Agent</label>
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
             disabled={connectionState !== 'disconnected'}
-            className="w-full rounded-lg bg-slate-700 border border-slate-600 text-slate-200 px-3 py-2 text-sm"
+            className="w-full rounded-lg bg-slate-700/80 border border-slate-600 text-slate-200 px-3 py-2 text-sm mb-6"
           >
             <option value="">— Select agent —</option>
             {agents.map((a) => (
@@ -457,111 +462,125 @@ export function VoiceAgentPhase1() {
               </option>
             ))}
           </select>
-        </div>
 
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <span className="text-sm text-slate-400">Status</span>
-          <span
-            className={`text-sm font-medium ${
-              connectionState === 'connected'
-                ? 'text-emerald-400'
+          <div className="flex flex-col items-center justify-center py-8">
+            {connectionState === 'connected' ? (
+              <PhoneOff className="h-16 w-16 text-emerald-400/80 mb-4" />
+            ) : (
+              <Phone className="h-16 w-16 text-slate-500 mb-4" />
+            )}
+            <p className="text-sm font-medium text-slate-300 mb-1">
+              {connectionState === 'connected'
+                ? 'On call'
                 : connectionState === 'connecting'
-                  ? 'text-amber-400'
-                  : 'text-slate-500'
-            }`}
-          >
-            {connectionState === 'connected'
-              ? `Connected ${agentType ? `· ${agentType}` : ''} ${sessionId ? `· ${sessionId.slice(0, 8)}…` : ''}`
-              : connectionState === 'connecting'
-                ? 'Connecting…'
-                : 'Disconnected'}
-          </span>
-        </div>
+                  ? 'Connecting…'
+                  : 'Ready to call'}
+            </p>
+            <p className="text-xs text-slate-500 mb-6">
+              {connectionState === 'connected'
+                ? `${agentType ?? ''} ${sessionId ? `· ${sessionId.slice(0, 8)}…` : ''}`
+                : 'Select an agent and start a call'}
+            </p>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-200 text-sm">{error}</div>
-        )}
+            {error && (
+              <div className="w-full mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-200 text-sm">
+                {error}
+              </div>
+            )}
 
-        <div className="flex gap-3 mb-6">
-          {connectionState !== 'connected' ? (
-            <button
-              type="button"
-              onClick={startCall}
-              disabled={connectionState === 'connecting' || !selectedAgentId}
-              className="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium text-white transition"
-            >
-              Start call
-            </button>
-          ) : (
-            <>
+            {connectionState !== 'connected' ? (
               <button
                 type="button"
-                onClick={toggleMic}
-                className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition ${
-                  micEnabled ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
-                }`}
+                onClick={startCall}
+                disabled={connectionState === 'connecting' || !selectedAgentId}
+                className="w-full max-w-xs py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium text-white transition"
               >
-                {micEnabled ? 'Stop mic' : 'Start mic'}
+                Start call
               </button>
-              {agentType === 'PIPELINE' && (
+            ) : (
+              <div className="flex flex-wrap items-center justify-center gap-2 w-full">
                 <button
                   type="button"
-                  onClick={sendInterrupt}
-                  className="py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium"
-                  title="Interrupt (barge-in)"
+                  onClick={toggleMic}
+                  className={`py-2.5 px-4 rounded-lg font-medium transition ${
+                    micEnabled ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
+                  }`}
                 >
-                  Interrupt
+                  {micEnabled ? 'Mute' : 'Unmute'}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={disconnect}
-                className="py-2.5 px-4 rounded-lg bg-slate-600 hover:bg-slate-500 text-slate-200 font-medium"
-              >
-                End call
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Lifecycle events */}
-        <div className="mb-4">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-2">Lifecycle events</label>
-          <ul className="rounded bg-slate-700/50 p-3 text-xs space-y-1 max-h-28 overflow-y-auto">
-            {lifecycleEvents.length === 0 ? (
-              <li className="text-slate-500">—</li>
-            ) : (
-              lifecycleEvents.map((e, i) => (
-                <li key={i} className="text-slate-300">
-                  <span className="text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span> {e.name}
-                  {e.payload?.text != null && ` "${String(e.payload.text).slice(0, 40)}…"`}
-                </li>
-              ))
+                {agentType === 'PIPELINE' && (
+                  <button
+                    type="button"
+                    onClick={sendInterrupt}
+                    className="py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium"
+                    title="Interrupt (barge-in)"
+                  >
+                    Interrupt
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={disconnect}
+                  className="py-2.5 px-4 rounded-lg bg-slate-600 hover:bg-slate-500 text-slate-200 font-medium"
+                >
+                  End call
+                </button>
+              </div>
             )}
-          </ul>
+          </div>
         </div>
 
-        {(agentType === 'PIPELINE' || !agentType) && (
-          <>
-            <div className="space-y-2 mb-4">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">You said</label>
-              <p className="text-sm text-slate-300 min-h-[2rem] rounded bg-slate-700/50 p-3">
-                {transcript || (partialTranscript ? <span className="text-slate-500 italic">{partialTranscript}</span> : '—')}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Agent</label>
-              <p className="text-sm text-slate-300 min-h-[4rem] rounded bg-slate-700/50 p-3 whitespace-pre-wrap">
-                {agentText || '—'}
-              </p>
-            </div>
-          </>
-        )}
-
-        {agentType === 'V2V' && (
-          <p className="text-sm text-slate-400 text-center">Realtime V2V: speak and listen via LiveKit.</p>
-        )}
+        {/* Right: Live transcript panel */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
+          <h2 className="text-lg font-semibold text-white">Live Transcript</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Real-time conversation transcription</p>
+          <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg bg-slate-800/50 border border-slate-700/50 p-4 space-y-4">
+            {lifecycleEvents.length > 0 && (
+              <ul className="text-xs space-y-1.5">
+                {lifecycleEvents.map((e, i) => (
+                  <li key={i} className="text-slate-400">
+                    <span className="text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span> {e.name}
+                    {e.payload?.text != null && ` "${String(e.payload.text).slice(0, 40)}…"`}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(agentType === 'PIPELINE' || !agentType) && (
+              <>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">You said</p>
+                  <p className="text-sm text-slate-300 rounded bg-slate-700/50 p-2">
+                    {transcript || (partialTranscript ? <span className="text-slate-500 italic">{partialTranscript}</span> : '—')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Agent</p>
+                  <p className="text-sm text-slate-300 rounded bg-slate-700/50 p-2 whitespace-pre-wrap">
+                    {agentText || '—'}
+                  </p>
+                </div>
+              </>
+            )}
+            {agentType === 'V2V' && (
+              <p className="text-sm text-slate-500">Realtime V2V — speak and listen via LiveKit. Events appear above.</p>
+            )}
+            {lifecycleEvents.length === 0 && !transcript && !agentText && !agentType && (
+              <p className="text-sm text-slate-500">Start a call to see events and transcript here.</p>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Bottom: Tips for better calls */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
+        <h3 className="text-sm font-semibold text-slate-300 mb-2">Tips for better calls</h3>
+        <ul className="text-sm text-slate-500 space-y-1 list-disc list-inside">
+          <li>Use a quiet environment and a clear microphone.</li>
+          <li>Speak in full sentences so the agent can respond accurately.</li>
+          <li>For Pipeline agents, wait for the agent to finish before speaking again, or use Interrupt to barge in.</li>
+          <li>For V2V agents, conversation is real-time — speak naturally and allow a short pause for the agent to reply.</li>
+        </ul>
+      </section>
     </div>
   );
 }

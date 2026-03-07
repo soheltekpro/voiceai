@@ -121,14 +121,14 @@ export function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-slate-800 bg-slate-900/50 flex flex-col">
+    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+      {/* Sidebar: fixed height, scrolls if menu exceeds viewport */}
+      <aside className="h-screen w-64 shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900/50">
         <div className="p-6 border-b border-slate-800">
           <h1 className="text-lg font-semibold text-white">Voice AI</h1>
           <p className="text-xs text-slate-500 mt-0.5">{workspace?.name ?? 'Admin'}</p>
         </div>
-        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+        <nav className="p-4 space-y-6">
           {user && (
             <div className="mb-4 px-3 py-2 rounded-lg bg-slate-800/60 text-xs text-slate-400">
               <p className="truncate">{user.email}</p>
@@ -166,8 +166,8 @@ export function DashboardLayout() {
         </nav>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      {/* Main content: scrolls independently */}
+      <main className="flex-1 min-h-0 overflow-auto">
         <div className="p-6 md:p-8">
           <Outlet />
         </div>

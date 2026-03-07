@@ -3,7 +3,7 @@ export default function App() {
 }
 
 import { Route, Routes, Navigate } from 'react-router-dom';
-import { VoiceAgentPhase1 } from './components/VoiceAgentPhase1';
+import { getToken } from './api/auth';
 import { AdminGate } from './admin/AdminGate';
 import { DashboardLayout } from './admin/DashboardLayout';
 import { LoginPage } from './admin/pages/LoginPage';
@@ -33,10 +33,16 @@ import { WebhooksPage } from './admin/pages/WebhooksPage';
 import { OperatorCallPage } from './admin/pages/OperatorCallPage';
 import { PlaceholderPage } from './admin/pages/PlaceholderPage';
 
+/** Root path: if logged in go to admin dashboard (home), else to login. */
+function RootRedirect() {
+  const token = getToken();
+  return <Navigate to={token ? '/admin' : '/login'} replace />;
+}
+
 function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<VoiceAgentPhase1 />} />
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/admin" element={<AdminGate />}>
