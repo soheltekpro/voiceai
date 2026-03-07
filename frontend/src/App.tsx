@@ -1,153 +1,77 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import {
-  ControlBar,
-  RoomAudioRenderer,
-  useSession,
-  SessionProvider,
-  useAgent,
-  useSessionContext,
-  BarVisualizer,
-} from '@livekit/components-react';
-import { TokenSource, RoomEvent } from 'livekit-client';
-import '@livekit/components-styles';
-
-const TOKEN_ENDPOINT = '/api/token';
-const USAGE_TOPIC = 'voice-usage';
-
-const tokenSource = TokenSource.endpoint(TOKEN_ENDPOINT);
-
-export type VoiceUsage = {
-  input_audio_tokens: number;
-  output_audio_tokens: number;
-  total_tokens: number;
-};
-
-function VoiceAgentView({ onRetry }: { onRetry: () => void }) {
-  const agent = useAgent();
-  const session = useSessionContext();
-  const [usage, setUsage] = useState<VoiceUsage | null>(null);
-  const isFailed = agent.state === 'failed';
-  const failureReasons = isFailed && agent.failureReasons?.length ? agent.failureReasons : [];
-
-  useEffect(() => {
-    if (!session.isConnected || !session.room) return;
-    const room = session.room;
-    const handler = (
-      payload: Uint8Array,
-      _participant?: unknown,
-      _kind?: unknown,
-      topic?: string
-    ) => {
-      if (topic !== USAGE_TOPIC) return;
-      try {
-        const text = new TextDecoder().decode(payload);
-        const data = JSON.parse(text) as VoiceUsage;
-        setUsage(data);
-      } catch {
-        // ignore parse errors
-      }
-    };
-    room.on(RoomEvent.DataReceived, handler);
-    return () => {
-      room.off(RoomEvent.DataReceived, handler);
-    };
-  }, [session.isConnected, session.room]);
-
-  return (
-    <div className="agent-view">
-      <div className="agent-card">
-        <h2>Voice Assistant</h2>
-        <p className="state">Status: {agent.state}</p>
-        {usage !== null && (
-          <div className="usage-box">
-            <strong>Usage this session</strong>
-            <p>Audio in: {usage.input_audio_tokens.toLocaleString()} tokens</p>
-            <p>Audio out: {usage.output_audio_tokens.toLocaleString()} tokens</p>
-            <p>Total: {usage.total_tokens.toLocaleString()} tokens</p>
-          </div>
-        )}
-        {isFailed && failureReasons.length > 0 && (
-          <div className="error-box">
-            <strong>Why it failed:</strong>
-            <ul>
-              {failureReasons.map((reason, i) => (
-                <li key={i}>{reason}</li>
-              ))}
-            </ul>
-            <p className="hint">
-              Make sure the <strong>LiveKit server</strong>, <strong>agent</strong>, and <strong>token server</strong> are all running (see README). Then tap Retry.
-            </p>
-            <button type="button" className="retry-btn" onClick={onRetry}>
-              Retry
-            </button>
-          </div>
-        )}
-        {agent.canListen && (
-          <BarVisualizer
-            track={agent.microphoneTrack}
-            state={agent.state}
-            barCount={8}
-          />
-        )}
-        {!isFailed && (
-          <p className="hint">
-            Use the mic button below to talk. The agent will respond with voice.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const isSecureContext = typeof window !== 'undefined' && window.isSecureContext;
-
-function AppContent() {
-  const session = useSession(tokenSource);
-
-  useEffect(() => {
-    session.start();
-    return () => {
-      session.end();
-    };
-  }, []);
-
-  const handleRetry = async () => {
-    await session.end();
-    await session.start();
-  };
-
-  return (
-    <SessionProvider session={session}>
-      <div data-lk-theme="default" className="app">
-        <header className="header">
-          <h1>Tittu — Voice Agent</h1>
-        </header>
-        {!isSecureContext && (
-          <div className="secure-context-banner" role="alert">
-            <strong>Microphone not available:</strong> This page is not served over HTTPS.
-            Browsers only allow microphone access on <code>https://</code> or <code>localhost</code>.
-            <ul>
-              <li><strong>Production:</strong> Serve this app over HTTPS (e.g. with a domain and SSL certificate).</li>
-              <li><strong>Chrome testing only:</strong> Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add this page&apos;s URL (e.g. <code>http://YOUR_IP</code>), enable, then relaunch Chrome.</li>
-            </ul>
-          </div>
-        )}
-        <VoiceAgentView onRetry={handleRetry} />
-        <ControlBar
-          controls={{
-            microphone: true,
-            camera: false,
-            screenShare: false,
-          }}
-        />
-        <RoomAudioRenderer />
-      </div>
-    </SessionProvider>
-  );
-}
-
 export default function App() {
-  return <AppContent />;
+  return <AppRouter />;
+}
+
+import { Route, Routes, Navigate } from 'react-router-dom';
+import { VoiceAgentPhase1 } from './components/VoiceAgentPhase1';
+import { AdminGate } from './admin/AdminGate';
+import { DashboardLayout } from './admin/DashboardLayout';
+import { LoginPage } from './admin/pages/LoginPage';
+import { RegisterPage } from './admin/pages/RegisterPage';
+import { DashboardPage } from './admin/pages/DashboardPage';
+import { AgentsPageNew } from './admin/pages/AgentsPageNew';
+import { AgentDetailPage } from './admin/pages/AgentDetailPage';
+import { KnowledgeBasesPage } from './admin/pages/KnowledgeBasesPage';
+import { ToolsPage } from './admin/pages/ToolsPage';
+import { WebCallPage } from './admin/pages/WebCallPage';
+import { CallHistoryPage } from './admin/pages/CallHistoryPage';
+import { CallDetailPage } from './admin/pages/CallDetailPage';
+import { CallSessionsPage } from './admin/pages/CallSessionsPage';
+import { CallSessionDetailPage } from './admin/pages/CallSessionDetailPage';
+import { MonitoringPage } from './admin/pages/MonitoringPage';
+import { LiveEventsPage } from './admin/pages/LiveEventsPage';
+import { SipTrunksPage } from './admin/pages/SipTrunksPage';
+import { PhoneNumbersPage } from './admin/pages/PhoneNumbersPage';
+import { OutboundCallsPage } from './admin/pages/OutboundCallsPage';
+import { WorkspacePage } from './admin/pages/WorkspacePage';
+import { TeamPage } from './admin/pages/TeamPage';
+import { ApiKeysPage } from './admin/pages/ApiKeysPage';
+import { BillingPage } from './admin/pages/BillingPage';
+import { UsagePage } from './admin/pages/UsagePage';
+import { AnalyticsPage } from './admin/pages/AnalyticsPage';
+import { WebhooksPage } from './admin/pages/WebhooksPage';
+import { OperatorCallPage } from './admin/pages/OperatorCallPage';
+import { PlaceholderPage } from './admin/pages/PlaceholderPage';
+
+function AppRouter() {
+  return (
+    <Routes>
+      <Route path="/" element={<VoiceAgentPhase1 />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/admin" element={<AdminGate />}>
+        <Route element={<DashboardLayout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="agents" element={<AgentsPageNew />} />
+          <Route path="agents/:id" element={<AgentDetailPage />} />
+          <Route path="knowledge-bases" element={<KnowledgeBasesPage />} />
+          <Route path="tools" element={<ToolsPage />} />
+          <Route path="phonebooks" element={<PlaceholderPage title="Phonebooks" description="Manage phonebooks." />} />
+          <Route path="campaigns" element={<PlaceholderPage title="Campaigns" description="Manage campaigns." />} />
+          <Route path="web-call" element={<WebCallPage />} />
+          <Route path="voice-calls" element={<PlaceholderPage title="Voice Calls" description="Test voice calls." />} />
+          <Route path="billing" element={<BillingPage />} />
+          <Route path="usage" element={<UsagePage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="webhooks" element={<WebhooksPage />} />
+          <Route path="sip-trunks" element={<SipTrunksPage />} />
+          <Route path="phone-numbers" element={<PhoneNumbersPage />} />
+          <Route path="outbound-calls" element={<OutboundCallsPage />} />
+          <Route path="websocket" element={<PlaceholderPage title="WebSocket" description="WebSocket configuration." />} />
+          <Route path="calls" element={<CallHistoryPage />} />
+          <Route path="calls/:id" element={<CallDetailPage />} />
+          <Route path="call-sessions" element={<CallSessionsPage />} />
+          <Route path="call-sessions/:id" element={<CallSessionDetailPage />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
+          <Route path="live-events" element={<LiveEventsPage />} />
+          <Route path="operator-call" element={<OperatorCallPage />} />
+          <Route path="workspace" element={<WorkspacePage />} />
+          <Route path="team" element={<TeamPage />} />
+          <Route path="api-keys" element={<ApiKeysPage />} />
+          <Route path="settings" element={<PlaceholderPage title="Settings" description="Platform settings." />} />
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }

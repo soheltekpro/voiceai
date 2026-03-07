@@ -1,0 +1,19 @@
+[Unit]
+Description=Voice AI API (Node.js backend)
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/voiceai/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/voiceai/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

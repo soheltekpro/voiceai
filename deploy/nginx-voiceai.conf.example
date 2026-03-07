@@ -1,13 +1,15 @@
+# Voice AI - Nginx: frontend + proxy API and WebSocket to Node backend (port 3000).
 # Copy to /etc/nginx/sites-available/voiceai and enable.
-# For IP-only access: use your server IP as server_name (e.g. 172.17.20.207) or use _ for default.
+# Replace server_name with your domain or IP (e.g. voiceai.example.com or _ for default).
 
-upstream voiceai_token {
-    server 127.0.0.1:8000;
+upstream voiceai_backend {
+    server 127.0.0.1:3000;
+    keepalive 64;
 }
 
 server {
     listen 80;
-    server_name _;   # _ = default; or use your server IP e.g. 172.17.20.207
+    server_name _;   # _ = default; or your domain e.g. voiceai.example.com
 
     root /var/www/voiceai/frontend/dist;
     index index.html;
@@ -16,12 +18,34 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # API and WebSocket (Node backend)
     location /api/ {
-        proxy_pass http://voiceai_token/;
+        proxy_pass http://voiceai_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
     }
+
+    location /voice {
+        proxy_pass http://voiceai_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Optional: proxy LiveKit WebSocket if you want same host (e.g. wss://yourdomain/livekit)
+    # location /livekit {
+    #     proxy_pass http://127.0.0.1:7880;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection "upgrade";
+    #     proxy_set_header Host $host;
+    # }
 }

@@ -1,0 +1,19 @@
+[Unit]
+Description=Voice AI Embedding Worker (BullMQ)
+After=network.target voiceai-api.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/voiceai/backend
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/voiceai/.env
+ExecStart=/var/www/voiceai/backend/node_modules/.bin/tsx src/workers/embedding-worker.ts
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,48 @@
-# Realtime Voice AI Agent (LiveKit)
+# Voice AI Platform
 
-Standalone realtime speech-to-speech agent using the LiveKit Python Agents Framework with optional **OpenAI** or **Gemini** backends.
+This repo includes:
+
+- **Phase 1 (Node.js + WebSocket)**: A full Voice AI stack with WebSocket voice streaming, STT → LLM → TTS pipeline, and a browser client. See [Phase 1 run instructions](#phase-1-websocket-voice-platform) and [docs/PHASE1-ARCHITECTURE.md](docs/PHASE1-ARCHITECTURE.md).
+- **LiveKit-based agent**: Standalone realtime speech-to-speech agent using the LiveKit Python Agents Framework with optional **OpenAI** or **Gemini** backends.
+
+---
+
+## Phase 1: WebSocket Voice Platform
+
+Quick start for the Node.js voice backend + React client:
+
+```bash
+# Terminal 1: backend
+cd backend && npm install && cp .env.example .env
+# Set OPENAI_API_KEY in backend/.env
+npm run dev
+
+# Terminal 2: frontend
+cd frontend && npm install && npm run dev
+```
+
+Open http://localhost:5173 → Connect → Start mic → speak. See [backend/README.md](backend/README.md) and [docs/PHASE1-ARCHITECTURE.md](docs/PHASE1-ARCHITECTURE.md) for architecture and env vars.
+
+## Phase 3: Agent management + dashboard
+
+- DB schema + APIs: [docs/PHASE3-AGENT-MANAGEMENT.md](docs/PHASE3-AGENT-MANAGEMENT.md)
+- Admin UI: `http://localhost:5173/admin`
+
+## Phase 9: LiveKit realtime agent integration
+
+- **POST /api/v1/calls/start** (body: `{ agentId, clientType }`) starts a call and returns:
+  - **Pipeline agents**: `agentType: "PIPELINE"`, `callSessionId`, `wsUrl`, `wsSessionId` — frontend connects via WebSocket to `wsUrl` and sends `config` with `callSessionId` and `agentId`.
+  - **V2V agents**: `agentType: "V2V"`, `callSessionId`, `roomName`, `livekitToken`, `livekitUrl` — frontend connects using LiveKit WebRTC (`Room.connect(livekitUrl, livekitToken)`).
+- **Lifecycle events**: `call.started`, `call.connected`, `speech.detected`, `agent.reply`, `call.ended`. For V2V, the frontend reports `call.connected` and `call.ended` via **POST /api/v1/calls/:callSessionId/events**.
+- **Backend (Node)** needs LiveKit credentials for V2V token generation and agent dispatch:
+  - `LIVEKIT_URL` — LiveKit server URL (e.g. `wss://your-project.livekit.cloud` or `ws://127.0.0.1:7880` for dev).
+  - `LIVEKIT_PUBLIC_URL` — Optional; URL returned to the browser (use when behind a proxy, e.g. `wss://voiceai.example.com`).
+  - `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` — For signing tokens and dispatching the realtime agent.
+- Run the **Python LiveKit agent** (e.g. `python agent.py dev`) so the worker joins rooms when users connect.
+
+---
+
+## LiveKit Realtime Voice Agent
 
 ## Requirements
 
