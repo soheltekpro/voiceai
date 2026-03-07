@@ -1,27 +1,64 @@
-# Apache config for Voice AI (IP-only or with ServerName).
+# Apache config for Voice AI (Node backend on 3000).
 # Copy to /etc/apache2/sites-available/voiceai.conf and enable with a2ensite.
-# Replace YOUR_SERVER_IP with your server IP (e.g. 172.17.20.207) if you want this to respond when users open http://YOUR_SERVER_IP
+# Replace voiceai.tittu.in with your domain (or use ServerName _ for default).
+
+# Required modules: sudo a2enmod proxy proxy_http proxy_wstunnel rewrite
 
 <VirtualHost *:80>
-    ServerName YOUR_SERVER_IP
-    # Or use the same as your other default (e.g. leave blank to use as default):
-    # ServerName _
-
+    ServerName voiceai.tittu.in
     DocumentRoot /var/www/voiceai/frontend/dist
 
     <Directory /var/www/voiceai/frontend/dist>
         Options -Indexes +FollowSymLinks
         AllowOverride None
         Require all granted
-        # SPA: serve index.html for any path that is not a file
         FallbackResource /index.html
     </Directory>
 
-    # Proxy /api to the token server (path must stay /api/token on backend)
+    # API (Node backend)
     ProxyPreserveHost On
-    ProxyPass /api http://127.0.0.1:8000/api
-    ProxyPassReverse /api http://127.0.0.1:8000/api
+    ProxyPass /api http://127.0.0.1:3000/api
+    ProxyPassReverse /api http://127.0.0.1:3000/api
+
+    # WebSocket /voice
+    RewriteEngine On
+    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
+    RewriteRule ^/voice$ ws://127.0.0.1:3000/voice [P,L]
+    ProxyPass /voice http://127.0.0.1:3000/voice
+    ProxyPassReverse /voice http://127.0.0.1:3000/voice
 
     ErrorLog ${APACHE_LOG_DIR}/voiceai-error.log
     CustomLog ${APACHE_LOG_DIR}/voiceai-access.log combined
 </VirtualHost>
+
+# HTTPS (after certbot: sudo certbot --apache -d voiceai.tittu.in)
+# <VirtualHost *:443>
+#     ServerName voiceai.tittu.in
+#     DocumentRoot /var/www/voiceai/frontend/dist
+#
+#     SSLEngine on
+#     SSLCertificateFile /etc/letsencrypt/live/voiceai.tittu.in/fullchain.pem
+#     SSLCertificateKeyFile /etc/letsencrypt/live/voiceai.tittu.in/privkey.pem
+#
+#     <Directory /var/www/voiceai/frontend/dist>
+#         Options -Indexes +FollowSymLinks
+#         AllowOverride None
+#         Require all granted
+#         FallbackResource /index.html
+#     </Directory>
+#
+#     ProxyPreserveHost On
+#     ProxyPass /api http://127.0.0.1:3000/api
+#     ProxyPassReverse /api http://127.0.0.1:3000/api
+#
+#     RewriteEngine On
+#     RewriteCond %{HTTP:Upgrade} websocket [NC]
+#     RewriteCond %{HTTP:Connection} upgrade [NC]
+#     RewriteRule ^/voice$ ws://127.0.0.1:3000/voice [P,L]
+#     ProxyPass /voice http://127.0.0.1:3000/voice
+#     ProxyPassReverse /voice http://127.0.0.1:3000/voice
+#
+#     ErrorLog ${APACHE_LOG_DIR}/voiceai-ssl-error.log
+#     CustomLog ${APACHE_LOG_DIR}/voiceai-ssl-access.log combined
+# </VirtualHost>

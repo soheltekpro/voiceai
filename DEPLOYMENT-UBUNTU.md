@@ -207,7 +207,36 @@ sudo systemctl status voiceai-api voiceai-worker-voice livekit-voiceai voiceai-a
 
 ---
 
-## 5. Nginx: frontend + proxy to backend
+## 5. Web server: frontend + proxy to backend
+
+The Node API runs on port **3000**. The web server must serve the frontend (`frontend/dist/`) and proxy `/api` and `/voice` (WebSocket) to the backend.
+
+### Option A: Apache (e.g. for https://voiceai.tittu.in)
+
+If Apache is already in use on your server:
+
+```bash
+# Enable proxy and WebSocket support
+sudo a2enmod proxy proxy_http proxy_wstunnel rewrite
+
+# Copy and edit the example (set ServerName to your domain, e.g. voiceai.tittu.in)
+sudo cp /var/www/voiceai/deploy/apache-voiceai.conf.example /etc/apache2/sites-available/voiceai.conf
+sudo nano /etc/apache2/sites-available/voiceai.conf
+```
+
+Set `ServerName` to your domain (e.g. `voiceai.tittu.in`). Then enable the site and reload:
+
+```bash
+sudo a2ensite voiceai.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+For **HTTPS**, use Certbot and then enable the SSL VirtualHost block in the same file (or run `sudo certbot --apache -d voiceai.tittu.in` and Certbot will add SSL to the existing site).
+
+### Option B: Nginx
+
+If you prefer Nginx:
 
 ```bash
 sudo cp /var/www/voiceai/deploy/nginx-voiceai.conf.example /etc/nginx/sites-available/voiceai
@@ -222,7 +251,9 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-If the frontend is served from a **different host** than the API (e.g. app on port 80, API on 3000), set `VITE_API_URL` when building the frontend so the client calls the correct API base URL.
+---
+
+If the frontend is served from a **different host** than the API, set `VITE_API_URL` when building the frontend (e.g. `VITE_API_URL=https://voiceai.tittu.in npm run build`) so the client calls the correct API base URL.
 
 ---
 
@@ -242,18 +273,120 @@ sudo ufw reload
 
 ## 7. Quick checklist
 
-| Step | Check |
-|------|--------|
-| DB & Redis | `psql -U voiceai_user -d voiceai -c 'SELECT 1'` and `redis-cli ping` |
-| Backend .env | `DATABASE_URL`, `REDIS_URL`, `OPENAI_API_KEY`, `JWT_SECRET`, `LIVEKIT_*` |
-| Root .env | Same as backend + `AI_PROVIDER`, `VOICEAI_API_URL` (and optional `VOICEAI_API_KEY`) |
-| Backend build | `ls /var/www/voiceai/backend/dist/index.js` |
-| Frontend build | `ls /var/www/voiceai/frontend/dist/index.html` |
-| API | `curl -s http://127.0.0.1:3000/api/v1/...` (e.g. health if you have one) or open login page |
-| Workers | `sudo journalctl -u voiceai-worker-voice -n 20` |
-| LiveKit | `sudo systemctl status livekit-voiceai` |
-| Agent | `sudo journalctl -u voiceai-agent -n 20` |
-| Nginx | `sudo nginx -t && curl -I http://YOUR_IP/` |
+Run these commands on your Ubuntu server to verify each part of the deployment. Replace `voiceai_user`, `voiceai`, and `voiceai.tittu.in` if you use different names.
+
+### 1. Database (PostgreSQL)
+
+```bash
+# Should print a row with "1" and no error
+sudo -u postgres psql -U voiceai_user -d voiceai -c 'SELECT 1'
+```
+
+If you get a password prompt, use the password you set for `voiceai_user`. If the database or user doesn't exist, create them (see section 2).
+
+### 2. Redis
+
+```bash
+# Should print PONG
+redis-cli ping
+```
+
+If `redis-cli` is not found, install Redis: `sudo apt install redis-server`.
+
+### 3. Root .env exists and has required vars
+
+```bash
+# File should exist and be readable by www-data
+sudo ls -la /var/www/voiceai/.env
+
+# Optional: show var names (values are hidden). Must include DATABASE_URL, REDIS_URL, OPENAI_API_KEY, JWT_SECRET, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+grep -E '^[A-Z_]+=' /var/www/voiceai/.env | cut -d= -f1 | sort
+```
+
+### 4. Backend build
+
+```bash
+# Should list the compiled API entry file
+ls -la /var/www/voiceai/backend/dist/index.js
+```
+
+If missing, run: `cd /var/www/voiceai/backend && sudo -u www-data npm run build`.
+
+### 5. Frontend build
+
+```bash
+# Should list the built SPA entry
+ls -la /var/www/voiceai/frontend/dist/index.html
+```
+
+If missing, run: `cd /var/www/voiceai/frontend && sudo -u www-data npm run build`.
+
+### 6. API (Node backend) responding
+
+```bash
+# Backend must be running (voiceai-api service). This may return 401 Unauthorized (no token), which is OK — it means the API is up
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/v1/agents
+```
+
+A response code of **200** (with a token) or **401** (without) means the API is reachable. **000** or connection refused means the backend is not running on 3000.
+
+**If you get 000:** The Node API (voiceai-api) is not running or not listening. Run:
+
+```bash
+# Is the service running?
+sudo systemctl status voiceai-api --no-pager
+
+# If inactive or failed, see why (e.g. "node: not found" → set PATH or use full path to node in the unit file)
+sudo journalctl -u voiceai-api -n 30 --no-pager
+
+# Start (and enable so it starts on boot)
+sudo systemctl start voiceai-api
+sudo systemctl enable voiceai-api
+```
+
+Then run the curl command again. If the service fails to start, fix the error from `journalctl` (e.g. install Node so `/usr/bin/node` exists, or edit `/etc/systemd/system/voiceai-api.service` and set `ExecStart` to the full path of your `node` binary).
+
+### 7. Voice worker
+
+```bash
+# Last 20 log lines; should show no crash loop
+sudo journalctl -u voiceai-worker-voice -n 20 --no-pager
+```
+
+### 8. LiveKit server
+
+```bash
+# Should show "active (running)"
+sudo systemctl status livekit-voiceai --no-pager
+```
+
+### 9. Python agent
+
+```bash
+# Last 20 log lines
+sudo journalctl -u voiceai-agent -n 20 --no-pager
+```
+
+### 10. Web server (Apache)
+
+```bash
+# Config must be valid
+sudo apache2ctl configtest
+
+# Site should return 200 (or 301/302 to HTTPS)
+curl -sI https://voiceai.tittu.in/ | head -1
+```
+
+For HTTP: `curl -sI http://voiceai.tittu.in/ | head -1`.
+
+### 11. All services at a glance
+
+```bash
+# List status of API, workers, LiveKit, and agent
+sudo systemctl is-active voiceai-api voiceai-worker-voice voiceai-worker-embedding voiceai-worker-tools voiceai-worker-webhooks voiceai-worker-postcall livekit-voiceai voiceai-agent
+```
+
+Each line should print **active** for the corresponding service.
 
 ---
 
@@ -268,7 +401,7 @@ sudo journalctl -u livekit-voiceai -f
 
 # Restart after code or .env changes
 sudo systemctl restart voiceai-api voiceai-worker-voice voiceai-worker-embedding voiceai-worker-tools voiceai-worker-webhooks voiceai-worker-postcall voiceai-agent
-# After frontend change: rebuild (npm run build) then reload nginx (no service restart).
+# After frontend change: rebuild (npm run build) then reload Apache or Nginx (no service restart).
 ```
 
 ---
@@ -285,4 +418,17 @@ sudo systemctl restart voiceai-api voiceai-worker-voice voiceai-worker-embedding
 - **API or workers fail to start:** Check `journalctl -u voiceai-api -n 50`. Ensure `DATABASE_URL` and `REDIS_URL` are correct and that PostgreSQL/Redis are running. Ensure `node` is on the PATH for the service user (or set `PATH` in the unit file).
 - **Workers not processing jobs:** Ensure Redis is running and `REDIS_URL` in `.env` matches. Ensure all worker services are started.
 - **V2V call never connects:** Ensure LiveKit and the Python agent are running and that `LIVEKIT_URL` / `LIVEKIT_PUBLIC_URL` are reachable from the browser (same domain or opened port 7880). Check agent logs: `journalctl -u voiceai-agent -f`.
-- **502 Bad Gateway:** Backend not listening on 3000 or Nginx upstream wrong. Check `systemctl status voiceai-api` and Nginx error log.
+- **502 Bad Gateway:** Backend not listening on 3000 or proxy config wrong. Check `systemctl status voiceai-api` and Apache/Nginx error log.
+
+- **ERR_MODULE_NOT_FOUND: Cannot find module '.../dist/generated/prisma/index.js':** The Prisma client is generated into `src/generated/prisma` but the app runs from `dist/`. Rebuild so that the generated client is copied into `dist`:
+
+  ```bash
+  cd /var/www/voiceai/backend
+  sudo -u www-data npx prisma generate
+  sudo -u www-data npm run build
+  # If the build script does not copy generated client, run manually:
+  # sudo cp -r src/generated dist/
+  sudo systemctl restart voiceai-api
+  ```
+
+  The backend `package.json` build script should run `prisma generate`, `tsc`, and `cp -r src/generated dist`. If you pulled an older version, run the copy manually once and then pull the updated build script.
