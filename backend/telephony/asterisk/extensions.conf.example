@@ -1,0 +1,14 @@
+[from-sip-trunk]
+; Inbound DID routing:
+; Map each phone number (DID) to an agentId by passing it as an ARI arg.
+;
+; Example: DID +14155550100 -> agent UUID 11111111-1111-1111-1111-111111111111
+exten => +14155550100,1,NoOp(Inbound call for agent 11111111-1111-1111-1111-111111111111)
+ same => n,Stasis(voiceai,11111111-1111-1111-1111-111111111111)
+ same => n,Hangup()
+
+; Default route (unknown DID)
+exten => _X.,1,NoOp(Inbound call default route)
+ same => n,Stasis(voiceai)
+ same => n,Hangup()
+

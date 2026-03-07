@@ -1,0 +1,465 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+enum VoiceProvider {
+  OPENAI
+  ELEVENLABS
+}
+
+enum InterruptionBehavior {
+  BARGE_IN_STOP_AGENT
+  IGNORE_WHILE_SPEAKING
+}
+
+enum CallClientType {
+  BROWSER
+  PHONE
+  UNKNOWN
+}
+
+enum CallSessionStatus {
+  ACTIVE
+  ENDED
+  ERROR
+}
+
+enum CallEventType {
+  SESSION_STARTED
+  SESSION_CONNECTED
+  SESSION_ENDED
+  TRANSCRIPT_PARTIAL
+  TRANSCRIPT_FINAL
+  AGENT_TEXT_DELTA
+  AGENT_REPLY
+  AGENT_AUDIO_START
+  AGENT_AUDIO_CHUNK
+  AGENT_AUDIO_END
+  AGENT_SPEAKING
+  AGENT_FINISHED
+  INTERRUPT
+  AGENT_STOPPED
+  ERROR
+  USAGE_UPDATED
+  TOOL_CALLED
+  TOOL_RESULT
+  RECORDING_AVAILABLE
+  HANDOFF_REQUESTED
+}
+
+enum CallMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum AgentType {
+  PIPELINE
+  V2V
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users           User[]
+  apiKeys         ApiKey[]
+  agents          Agent[]
+  knowledgeBases  KnowledgeBase[]
+  tools           Tool[]
+  sipTrunks       SipTrunk[]
+  phoneNumbers    PhoneNumber[]
+  calls           Call[]
+  documents       Document[]
+  workspacePlans  WorkspacePlan[]
+  workspaceUsages WorkspaceUsage[]
+  webhooks        Webhook[]
+
+  @@map("workspaces")
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  workspaceId String
+  url         String
+  events      String[]
+  secret      String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("webhooks")
+}
+
+model Plan {
+  id               String   @id @default(uuid())
+  name             String
+  price            Decimal  @db.Decimal(10, 4)
+  callMinutesLimit Int?     // null = unlimited
+  tokenLimit       Int?     // null = unlimited
+  toolCallsLimit   Int?     // null = unlimited
+  sttSecondsLimit  Int?     // optional
+  ttsSecondsLimit  Int?     // optional
+  createdAt        DateTime @default(now())
+
+  workspacePlans WorkspacePlan[]
+
+  @@map("plans")
+}
+
+enum WorkspacePlanStatus {
+  ACTIVE
+  CANCELLED
+}
+
+model WorkspacePlan {
+  workspaceId String
+  planId      String
+  status      WorkspacePlanStatus @default(ACTIVE)
+  createdAt   DateTime            @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId])
+  @@index([planId])
+  @@map("workspace_plans")
+}
+
+model WorkspaceUsage {
+  id          String   @id @default(uuid())
+  workspaceId String
+  metric      String   // call_minutes, llm_tokens, stt_seconds, tts_seconds, tool_calls
+  value       Int      @default(0) // cumulative for the period
+  periodStart DateTime
+  periodEnd   DateTime
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, metric, periodStart])
+  @@index([workspaceId])
+  @@index([workspaceId, periodStart])
+  @@map("workspace_usage")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  workspaceId  String
+  role         UserRole  @default(MEMBER)
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("users")
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  key         String   // hashed or prefix+secret
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([key])
+  @@map("api_keys")
+}
+
+model Agent {
+  id          String        @id @default(uuid())
+  workspaceId String
+  name        String
+  description String?
+  agentType   AgentType     @default(PIPELINE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  settings    AgentSettings?
+  callSessions CallSession[]
+  agentTools  AgentTool[]
+  phoneNumbers PhoneNumber[]
+
+  @@index([workspaceId])
+  @@index([agentType])
+  @@map("agents")
+}
+
+enum ToolType {
+  WEBHOOK
+  HTTP_REQUEST
+  DATABASE_LOOKUP
+  HUMAN_HANDOFF
+}
+
+model Tool {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  description String?
+  type        ToolType
+  config      Json     // type-specific config (url, method, etc.)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agents    AgentTool[]
+
+  @@index([workspaceId])
+  @@map("tools")
+}
+
+model AgentTool {
+  agentId String
+  toolId  String
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tool  Tool  @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, toolId])
+  @@map("agent_tools")
+}
+
+enum CallStatus {
+  ACTIVE
+  ENDED
+  ERROR
+}
+
+enum ConversationMessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+  TOOL
+}
+
+model Call {
+  id                String      @id @default(uuid())
+  workspaceId       String
+  agentId           String
+  agentType         AgentType
+  status            CallStatus  @default(ACTIVE)
+  startedAt         DateTime    @default(now())
+  endedAt           DateTime?
+  durationSeconds   Int?
+  transcript        String?
+  recordingEnabled  Boolean     @default(true)
+  recordingUrl      String?
+  recordingDuration Int?        // seconds
+  tokensUsed        Int?
+  callSessionId     String?     // link to call_sessions for pipeline/v2v
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversationMessages ConversationMessage[]
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@index([startedAt])
+  @@index([status])
+  @@index([callSessionId])
+  @@map("calls")
+}
+
+model ConversationMessage {
+  id        String                 @id @default(uuid())
+  callId    String
+  role      ConversationMessageRole
+  content   String                 @db.Text
+  createdAt DateTime               @default(now())
+
+  call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([callId, createdAt])
+  @@map("conversation_messages")
+}
+
+model AgentSettings {
+  id                     String                @id @default(uuid())
+  agentId                String                @unique
+  systemPrompt           String                @default("You are a helpful voice assistant.")
+  language               String                @default("en")
+  voiceProvider          VoiceProvider         @default(OPENAI)
+  voiceName              String                @default("alloy")
+  sttProvider            String?
+  llmProvider            String?
+  ttsProvider            String?
+  maxCallDurationSeconds Int                   @default(900)
+  interruptionBehavior   InterruptionBehavior  @default(BARGE_IN_STOP_AGENT)
+  knowledgeBaseId        String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  agent         Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase? @relation(fields: [knowledgeBaseId], references: [id], onDelete: SetNull)
+
+  @@map("agent_settings")
+}
+
+model KnowledgeBase {
+  id          String     @id @default(uuid())
+  workspaceId String
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents   Document[]
+  agentSettings AgentSettings[]
+
+  @@index([workspaceId])
+  @@map("knowledge_bases")
+}
+
+model Document {
+  id              String        @id @default(uuid())
+  workspaceId     String
+  knowledgeBaseId String
+  name            String        // display name or filename
+  sourceType      String        // "pdf" | "text" | "url"
+  sourceRef       String?       // URL or file path if applicable
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase  @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  chunks        DocumentChunk[]
+
+  @@index([workspaceId])
+  @@index([knowledgeBaseId])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String
+  content    String   @db.Text
+  index      Int      // order within document
+  embedding  Unsupported("vector(1536)")? // OpenAI text-embedding-3-small
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+model CallSession {
+  id          String            @id @default(uuid())
+  agentId     String?
+  clientType  CallClientType    @default(UNKNOWN)
+  status      CallSessionStatus @default(ACTIVE)
+  startedAt   DateTime          @default(now())
+  endedAt     DateTime?
+  metadata    Json?
+
+  // Phase 6 + Phase 10: analytics and usage (pipeline + v2v)
+  durationSeconds      Int?
+  userMessageCount     Int          @default(0)
+  assistantMessageCount Int         @default(0)
+  transcriptText       String?      // concatenated user transcript for search
+  estimatedCostUsd     Decimal?     @db.Decimal(10, 4)
+  inputTokens          Int?         // e.g. audio/text input tokens (v2v/pipeline)
+  outputTokens         Int?         // e.g. audio/text output tokens
+
+  agent  Agent?      @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  events CallEvent[]
+  messages CallMessage[]
+
+  @@index([agentId])
+  @@index([startedAt])
+  @@index([status, startedAt])
+  @@map("call_sessions")
+}
+
+model CallEvent {
+  id         String        @id @default(uuid())
+  sessionId  String
+  type       CallEventType
+  timestamp  DateTime      @default(now())
+  payload    Json?
+
+  session CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestamp])
+  @@map("call_events")
+}
+
+model CallMessage {
+  id        String          @id @default(uuid())
+  sessionId String
+  role      CallMessageRole
+  text      String
+  createdAt DateTime        @default(now())
+
+  // Optional analytics/cost info
+  tokensEstimated Int?
+  costUsd        Decimal?    @db.Decimal(10, 4)
+
+  session CallSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("call_messages")
+}
+
+model SipTrunk {
+  id          String   @id @default(uuid())
+  workspaceId String
+  provider    String   // e.g. TWILIO, PLIVO, TELNYX
+  name        String
+  config      Json     // provider-specific (credentials, endpoint, etc.)
+  createdAt   DateTime @default(now())
+
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  phoneNumbers  PhoneNumber[]
+
+  @@index([workspaceId])
+  @@index([provider])
+  @@map("sip_trunks")
+}
+
+model PhoneNumber {
+  id          String   @id @default(uuid())
+  workspaceId String
+  number      String   // E.164 or provider format
+  provider    String   // same as trunk typically
+  sipTrunkId  String
+  agentId     String?  // assigned agent for inbound; null = unassigned
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sipTrunk  SipTrunk  @relation(fields: [sipTrunkId], references: [id], onDelete: Cascade)
+  agent     Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@unique([number, sipTrunkId])
+  @@index([workspaceId])
+  @@index([sipTrunkId])
+  @@index([agentId])
+  @@index([number])
+  @@map("phone_numbers")
+}
