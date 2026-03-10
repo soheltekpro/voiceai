@@ -210,4 +210,75 @@ export async function registerCallHistoryRoutes(app: FastifyInstance): Promise<v
       createdAt: msg.createdAt.toISOString(),
     });
   });
+
+  /** GET /api/v1/calls/:id/outcome - AI-detected call outcome */
+  app.get('/calls/:id/outcome', async (req, reply) => {
+    const workspaceId = getWorkspaceId(req);
+    const id = (req.params as { id: string }).id;
+    const call = await prisma.call.findFirst({
+      where: { id, workspaceId },
+      select: { id: true },
+    });
+    if (!call) return reply.code(404).send({ message: 'Call not found' });
+
+    const outcome = await prisma.voiceCallOutcome.findUnique({
+      where: { callId: id },
+      select: { outcome: true, confidence: true, summary: true },
+    });
+    if (!outcome) return reply.code(404).send({ message: 'Outcome not yet detected for this call' });
+
+    return {
+      outcome: outcome.outcome,
+      confidence: outcome.confidence,
+      summary: outcome.summary,
+    };
+  });
+
+  /** GET /api/v1/calls/:id/guidance - latest AI suggestions for the call */
+  app.get('/calls/:id/guidance', async (req, reply) => {
+    const workspaceId = getWorkspaceId(req);
+    const id = (req.params as { id: string }).id;
+    const call = await prisma.call.findFirst({
+      where: { id, workspaceId },
+      select: { id: true },
+    });
+    if (!call) return reply.code(404).send({ message: 'Call not found' });
+
+    const items = await prisma.voiceCallGuidance.findMany({
+      where: { callId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { id: true, suggestion: true, createdAt: true },
+    });
+    return {
+      items: items.map((g) => ({
+        id: g.id,
+        suggestion: g.suggestion,
+        createdAt: g.createdAt.toISOString(),
+      })),
+    };
+  });
+
+  /** GET /api/v1/calls/:id/evaluation - AI call quality evaluation */
+  app.get('/calls/:id/evaluation', async (req, reply) => {
+    const workspaceId = getWorkspaceId(req);
+    const id = (req.params as { id: string }).id;
+    const call = await prisma.call.findFirst({
+      where: { id, workspaceId },
+      select: { id: true },
+    });
+    if (!call) return reply.code(404).send({ message: 'Call not found' });
+
+    const evaluation = await prisma.voiceCallEvaluation.findUnique({
+      where: { callId: id },
+      select: { score: true, strengths: true, improvements: true },
+    });
+    if (!evaluation) return reply.code(404).send({ message: 'Evaluation not yet available for this call' });
+
+    return {
+      score: evaluation.score,
+      strengths: evaluation.strengths,
+      improvements: evaluation.improvements,
+    };
+  });
 }

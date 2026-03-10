@@ -13,6 +13,7 @@ import { registerWorkspaceRoutes } from './routes/workspace.js';
 import { registerTeamRoutes } from './routes/team.js';
 import { registerApiKeyRoutes } from './routes/api-keys.js';
 import { registerBillingRoutes } from './routes/billing.js';
+import { registerBillingWebhookRoutes } from './routes/billing-webhook.js';
 import { registerUsageRoutes } from './routes/usage.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerJobRoutes } from './routes/jobs.js';
@@ -21,10 +22,17 @@ import { registerRagRoutes } from './routes/rag.js';
 import type { AsteriskController } from '../telephony/asterisk/controller.js';
 import { registerTelephonyRoutes } from '../telephony/api/routes.js';
 import { registerCallOrchestratorRoutes } from './routes/call-orchestrator.js';
+import { registerDebugRoutes } from './routes/debug.js';
+import { registerVoiceAnalyticsRoutes } from './routes/voice-analytics.js';
+import { registerMemoryRoutes } from './routes/memory.js';
+import { registerProviderRoutes } from './routes/providers.js';
 
 export async function registerApi(app: FastifyInstance, deps?: { asterisk?: AsteriskController }): Promise<void> {
+  await app.register(registerDebugRoutes, { prefix: '/api/v1' });
+
   await app.register(async (router) => {
     await router.register(registerAuthRoutes);
+    await router.register(registerBillingWebhookRoutes);
 
     await router.register(async (protectedRouter) => {
       protectedRouter.addHook('preHandler', requireWorkspaceContext);
@@ -46,6 +54,9 @@ export async function registerApi(app: FastifyInstance, deps?: { asterisk?: Aste
       await registerJobRoutes(protectedRouter);
       await registerWebhookRoutes(protectedRouter);
       await registerRagRoutes(protectedRouter);
+      await registerVoiceAnalyticsRoutes(protectedRouter);
+      await registerMemoryRoutes(protectedRouter);
+      await registerProviderRoutes(protectedRouter);
       if (deps?.asterisk) registerTelephonyRoutes(protectedRouter, { asterisk: deps.asterisk });
     });
   }, { prefix: '/api/v1' });

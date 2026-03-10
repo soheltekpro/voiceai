@@ -21,7 +21,9 @@ import { ApiKeysPage } from './pages/ApiKeysPage';
 import { BillingPage } from './pages/BillingPage';
 import { UsagePage } from './pages/UsagePage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { VoiceAnalyticsPage } from './pages/VoiceAnalyticsPage';
 import { WebhooksPage } from './pages/WebhooksPage';
+import { MemoryPage } from './pages/MemoryPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 
 export function AdminApp() {
@@ -39,7 +41,9 @@ export function AdminApp() {
         <Route path="voice-calls" element={<PlaceholderPage title="Voice Calls" description="Test voice calls." />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="usage" element={<UsagePage />} />
+        <Route path="memory" element={<MemoryPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="voice-analytics" element={<VoiceAnalyticsPage />} />
         <Route path="webhooks" element={<WebhooksPage />} />
         <Route path="sip-trunks" element={<SipTrunksPage />} />
         <Route path="phone-numbers" element={<PhoneNumbersPage />} />

@@ -8,6 +8,7 @@ export default defineConfig({
             '/api': {
                 target: 'http://127.0.0.1:3000',
                 changeOrigin: true,
+                ws: true, // allow WebSocket e.g. /api/v1/events/stream
             },
             '/voice': {
                 target: 'http://127.0.0.1:3000',

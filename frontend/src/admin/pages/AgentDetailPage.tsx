@@ -4,11 +4,39 @@ import { Phone, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
 import { apiGet, apiPatch, apiPut } from '../../api/client';
 import { fetchTools, fetchAgentTools, setAgentTools } from '../../api/tools';
 import { fetchKnowledgeBases } from '../../api/knowledge-bases';
+import {
+  fetchPromptOptimizations,
+  generatePromptOptimization,
+  type PromptOptimizationItem,
+  fetchPromptVersions,
+  fetchPromptPerformance,
+  createPromptVersion as apiCreatePromptVersion,
+  updatePromptVersion,
+  type PromptVersionItem,
+  type PromptPerformanceItem,
+} from '../../api/agents';
 import type { Tool } from '../../api/tools';
 import type { KnowledgeBase } from '../../api/knowledge-bases';
 import type { Agent, AgentSettings } from '../types';
+import { fetchProviderModels, fetchTtsVoices, type ProviderModel } from '../../api/providers';
 
-const VOICE_OPTIONS = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const LLM_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'google', label: 'Google' },
+  { value: 'anthropic', label: 'Anthropic' },
+] as const;
+
+const STT_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'deepgram', label: 'Deepgram' },
+  { value: 'assemblyai', label: 'AssemblyAI' },
+];
+
+const TTS_PROVIDERS_UI = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'elevenlabs', label: 'ElevenLabs' },
+  { value: 'playht', label: 'PlayHT' },
+];
 
 function applyVariables(text: string, variables: Record<string, string>): string {
   let out = text;
@@ -56,6 +84,16 @@ export function AgentDetailPage() {
   const [language, setLanguage] = useState('en');
   const [voiceName, setVoiceName] = useState('alloy');
   const [voiceProvider, setVoiceProvider] = useState<'OPENAI' | 'ELEVENLABS'>('OPENAI');
+  const [sttProvider, setSttProvider] = useState<string>('openai');
+  const [sttModel, setSttModel] = useState<string>('');
+  const [llmProvider, setLlmProvider] = useState<string>('openai');
+  const [llmModel, setLlmModel] = useState<string>('');
+  const [temperature, setTemperature] = useState<number>(0.7);
+  const [ttsProvider, setTtsProvider] = useState<string>('openai');
+  const [ttsVoice, setTtsVoice] = useState<string>('');
+  const [sttModels, setSttModels] = useState<ProviderModel[]>([]);
+  const [llmModels, setLlmModels] = useState<ProviderModel[]>([]);
+  const [ttsVoices, setTtsVoices] = useState<ProviderModel[]>([]);
   const [maxCallDurationSeconds, setMaxCallDurationSeconds] = useState(900);
   const [interruptionBehavior, setInterruptionBehavior] = useState<'BARGE_IN_STOP_AGENT' | 'IGNORE_WHILE_SPEAKING'>(
     'BARGE_IN_STOP_AGENT'
@@ -70,6 +108,11 @@ export function AgentDetailPage() {
   const [agentToolIds, setAgentToolIds] = useState<string[]>([]);
   const [savingTools, setSavingTools] = useState(false);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [promptOptimizations, setPromptOptimizations] = useState<PromptOptimizationItem[]>([]);
+  const [generatingOptimization, setGeneratingOptimization] = useState(false);
+  const [promptVersions, setPromptVersions] = useState<PromptVersionItem[]>([]);
+  const [promptPerformance, setPromptPerformance] = useState<PromptPerformanceItem[]>([]);
+  const [creatingVersion, setCreatingVersion] = useState(false);
 
   const loadTools = useCallback(async () => {
     if (!agentId) return;
@@ -101,11 +144,35 @@ export function AgentDetailPage() {
       setLanguage(s.language ?? 'en');
       setVoiceName(s.voiceName ?? 'alloy');
       setVoiceProvider(s.voiceProvider ?? 'OPENAI');
+      const sttP = (s.sttProvider ?? 'openai').toLowerCase();
+      setSttProvider(sttP);
+      setSttModel(s.sttModel ?? '');
+      const provider = (s.llmProvider ?? 'openai').toLowerCase();
+      setLlmProvider(provider);
+      setLlmModel(s.llmModel ?? '');
+      setTemperature(s.temperature ?? 0.7);
+      const ttsP = (s.ttsProvider ?? 'openai').toLowerCase();
+      setTtsProvider(ttsP);
+      setTtsVoice((s.ttsVoice ?? '') || (s.voiceName ?? ''));
       setMaxCallDurationSeconds(s.maxCallDurationSeconds ?? 900);
       setInterruptionBehavior(s.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT');
       setKnowledgeBaseId(s.knowledgeBaseId ?? null);
       setKnowledgeBases(kbList.items ?? []);
       await loadTools();
+      try {
+        const [opt, versions, perf] = await Promise.all([
+          fetchPromptOptimizations(agentId, 20),
+          fetchPromptVersions(agentId),
+          fetchPromptPerformance(agentId),
+        ]);
+        setPromptOptimizations(opt.items ?? []);
+        setPromptVersions(versions.items ?? []);
+        setPromptPerformance(perf.items ?? []);
+      } catch {
+        setPromptOptimizations([]);
+        setPromptVersions([]);
+        setPromptPerformance([]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load agent');
     }
@@ -115,6 +182,53 @@ export function AgentDetailPage() {
     if (!agentId) return;
     void load();
   }, [agentId, load]);
+
+  // Fetch STT models when STT provider changes
+  useEffect(() => {
+    if (!sttProvider) return;
+    fetchProviderModels(sttProvider, 'stt')
+      .then((models) => {
+        setSttModels(models);
+        setSttModel((prev) => (prev && models.some((m) => m.id === prev) ? prev : models[0]?.id ?? ''));
+      })
+      .catch(() => setSttModels([]));
+  }, [sttProvider]);
+
+  // Fetch LLM models when LLM provider changes
+  useEffect(() => {
+    if (!llmProvider) return;
+    fetchProviderModels(llmProvider, 'llm')
+      .then((models) => {
+        setLlmModels(models);
+        setLlmModel((prev) => (prev && models.some((m) => m.id === prev) ? prev : models[0]?.id ?? ''));
+      })
+      .catch(() => setLlmModels([]));
+  }, [llmProvider]);
+
+  // Fetch TTS voices when TTS provider changes (ElevenLabs from dedicated voices API, others from models?type=tts)
+  useEffect(() => {
+    if (!ttsProvider) return;
+    if (ttsProvider.toLowerCase() === 'elevenlabs') {
+      fetchTtsVoices('elevenlabs')
+        .then(({ voices, error }) => {
+          setTtsVoices(voices);
+          setTtsVoice((prev) => (prev && voices.some((v) => v.id === prev) ? prev : voices[0]?.id ?? ''));
+          if (error && voices.length === 0) setError(error);
+        })
+        .catch((err) => {
+          setTtsVoices([]);
+          setError(err instanceof Error ? err.message : 'Failed to load ElevenLabs voices');
+        });
+    } else {
+      setError(null);
+      fetchProviderModels(ttsProvider, 'tts')
+        .then((models) => {
+          setTtsVoices(models);
+          setTtsVoice((prev) => (prev && models.some((m) => m.id === prev) ? prev : models[0]?.id ?? ''));
+        })
+        .catch(() => setTtsVoices([]));
+    }
+  }, [ttsProvider]);
 
   const saveAgentTools = async () => {
     if (!agentId) return;
@@ -142,6 +256,13 @@ export function AgentDetailPage() {
         language,
         voiceName,
         voiceProvider,
+        sttProvider: sttProvider || null,
+        sttModel: sttModel.trim() || null,
+        llmProvider: llmProvider || null,
+        llmModel: llmModel.trim() || null,
+        temperature,
+        ttsProvider: ttsProvider || null,
+        ttsVoice: ttsVoice.trim() || null,
         maxCallDurationSeconds,
         interruptionBehavior,
         knowledgeBaseId: knowledgeBaseId || null,
@@ -291,31 +412,119 @@ export function AgentDetailPage() {
                     className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-emerald-500/50 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Provider</label>
-                  <select
-                    value={voiceProvider}
-                    onChange={(e) => setVoiceProvider(e.target.value as 'OPENAI' | 'ELEVENLABS')}
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
-                  >
-                    <option value="OPENAI">OpenAI</option>
-                    <option value="ELEVENLABS">ElevenLabs</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Voice</label>
-                  <select
-                    value={voiceName}
-                    onChange={(e) => setVoiceName(e.target.value)}
-                    className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
-                  >
-                    {VOICE_OPTIONS.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {agent?.agentType === 'PIPELINE' && (
+                  <>
+                    <div className="border-t border-slate-800 pt-4">
+                      <h3 className="text-xs font-semibold text-slate-400 mb-2">Speech to Text</h3>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">STT Provider</label>
+                          <select
+                            value={sttProvider}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setSttProvider(next);
+                            }}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {STT_PROVIDERS.map((p) => (
+                              <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">STT Model</label>
+                          <select
+                            value={sttModel || (sttModels[0]?.id ?? '')}
+                            onChange={(e) => setSttModel(e.target.value)}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {sttModels.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-800 pt-4">
+                      <h3 className="text-xs font-semibold text-slate-400 mb-2">Language Model</h3>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">LLM Provider</label>
+                          <select
+                            value={llmProvider}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setLlmProvider(next);
+                            }}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {LLM_PROVIDERS.map((p) => (
+                              <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">Model</label>
+                          <select
+                            value={llmModel || (llmModels[0]?.id ?? '')}
+                            onChange={(e) => setLlmModel(e.target.value)}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {llmModels.map((m) => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">Temperature ({temperature})</label>
+                          <input
+                            type="range"
+                            min={0}
+                            max={2}
+                            step={0.1}
+                            value={temperature}
+                            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                            className="w-full h-2 rounded-lg bg-slate-800 accent-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-800 pt-4">
+                      <h3 className="text-xs font-semibold text-slate-400 mb-2">Text to Speech</h3>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">TTS Provider</label>
+                          <select
+                            value={ttsProvider}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setTtsProvider(next);
+                              if (next.toLowerCase() !== 'elevenlabs') setTtsVoice('');
+                            }}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {TTS_PROVIDERS_UI.map((p) => (
+                              <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-0.5">Voice</label>
+                          <select
+                            value={ttsVoice || (ttsVoices[0]?.id ?? voiceName)}
+                            onChange={(e) => setTtsVoice(e.target.value)}
+                            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                          >
+                            {ttsVoices.map((v) => (
+                              <option key={v.id} value={v.id}>{v.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Language</label>
                   <input
@@ -468,6 +677,121 @@ export function AgentDetailPage() {
                   {savingTools ? 'Saving…' : 'Save tools'}
                 </button>
               )}
+            </Section>
+
+            <Section title="Prompt Versions" defaultOpen={true}>
+              <p className="text-xs text-slate-500 mb-3">
+                A/B test system prompts. Active versions receive traffic by <em>Traffic %</em>. Create a version from the current prompt above.
+              </p>
+              {(promptVersions.length === 0 && !creatingVersion) && (
+                <p className="text-xs text-slate-500 mb-3">No versions yet. Create one from your current system prompt to start A/B testing.</p>
+              )}
+              {promptVersions.length > 0 && (
+                <div className="overflow-x-auto rounded-lg border border-slate-800">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-900/60">
+                        <th className="text-left py-2 px-3 text-slate-400 font-medium">Version</th>
+                        <th className="text-left py-2 px-3 text-slate-400 font-medium">Traffic</th>
+                        <th className="text-left py-2 px-3 text-slate-400 font-medium">Conversion</th>
+                        <th className="text-left py-2 px-3 text-slate-400 font-medium">Avg Score</th>
+                        <th className="text-left py-2 px-3 text-slate-400 font-medium">Active</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {promptVersions.map((v) => {
+                        const perf = promptPerformance.find((p) => p.promptVersionId === v.id);
+                        return (
+                          <tr key={v.id} className="border-b border-slate-800/80 hover:bg-slate-800/30">
+                            <td className="py-2 px-3 text-slate-200 font-mono">v{v.version}</td>
+                            <td className="py-2 px-3 text-slate-300">{v.trafficShare}%</td>
+                            <td className="py-2 px-3 text-slate-300">{perf?.conversionRate != null ? `${perf.conversionRate}%` : '—'}</td>
+                            <td className="py-2 px-3 text-slate-300">{perf?.avgScore != null ? Math.round(perf.avgScore) : '—'}</td>
+                            <td className="py-2 px-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!agentId) return;
+                                  try {
+                                    await updatePromptVersion(agentId, v.id, { isActive: !v.isActive });
+                                    const [versions, perfRes] = await Promise.all([fetchPromptVersions(agentId), fetchPromptPerformance(agentId)]);
+                                    setPromptVersions(versions.items ?? []);
+                                    setPromptPerformance(perfRes.items ?? []);
+                                  } catch (e) {
+                                    setError(e instanceof Error ? e.message : 'Failed to update');
+                                  }
+                                }}
+                                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${v.isActive ? 'bg-emerald-600/80 text-white' : 'bg-slate-700 text-slate-400'}`}
+                              >
+                                {v.isActive ? 'On' : 'Off'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!agentId || !systemPrompt.trim()) return;
+                  setCreatingVersion(true);
+                  try {
+                    await apiCreatePromptVersion(agentId, { systemPrompt: systemPrompt.trim(), isActive: false, trafficShare: 0 });
+                    const [versions, perf] = await Promise.all([fetchPromptVersions(agentId), fetchPromptPerformance(agentId)]);
+                    setPromptVersions(versions.items ?? []);
+                    setPromptPerformance(perf.items ?? []);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Failed to create version');
+                  } finally {
+                    setCreatingVersion(false);
+                  }
+                }}
+                disabled={creatingVersion || !systemPrompt.trim()}
+                className="mt-3 w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-sm font-medium text-slate-200"
+              >
+                {creatingVersion ? 'Creating…' : 'Create version from current prompt'}
+              </button>
+            </Section>
+
+            <Section title="AI Prompt Suggestions" defaultOpen={true}>
+              <p className="text-xs text-slate-500 mb-3">
+                Suggestions to improve the system prompt based on past call evaluations (handling objections, clarity, features).
+              </p>
+              {promptOptimizations.length === 0 ? (
+                <p className="text-xs text-slate-500">No suggestions yet. Run a few calls and generate a suggestion from their evaluations.</p>
+              ) : (
+                <ul className="space-y-3 max-h-48 overflow-y-auto">
+                  {promptOptimizations.map((o) => (
+                    <li key={o.id} className="rounded-lg bg-slate-950/80 border border-slate-800 px-3 py-2">
+                      <p className="text-sm text-slate-200 whitespace-pre-wrap">{o.suggestion}</p>
+                      <p className="text-xs text-slate-500 mt-1">{new Date(o.createdAt).toLocaleString()}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!agentId) return;
+                  setGeneratingOptimization(true);
+                  try {
+                    await generatePromptOptimization(agentId);
+                    const opt = await fetchPromptOptimizations(agentId, 20);
+                    setPromptOptimizations(opt.items ?? []);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Failed to generate suggestion');
+                  } finally {
+                    setGeneratingOptimization(false);
+                  }
+                }}
+                disabled={generatingOptimization}
+                className="mt-3 w-full py-2 rounded-lg bg-emerald-700/80 hover:bg-emerald-600/80 disabled:opacity-50 text-sm font-medium text-white"
+              >
+                {generatingOptimization ? 'Generating…' : 'Generate suggestion'}
+              </button>
             </Section>
           </div>
         </div>

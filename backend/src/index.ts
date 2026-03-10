@@ -13,12 +13,16 @@ import { AsteriskController } from './telephony/asterisk/controller.js';
 import { TelephonySessionManager } from './telephony/session/session-manager.js';
 import { registerEventWebsocket } from './events/ws.js';
 import { addStreamClient } from './services/event-bus.js';
+import { addVoiceMonitorClient } from './voice/voice-monitor.js';
 import { createRedis } from './infra/redis.js';
 import { registerRateLimiting } from './infra/rate-limit.js';
 import { registerMetrics } from './infra/metrics.js';
 
 async function main() {
   validateConfig();
+
+  const { setPoolSize } = await import('./voice/agent-worker-pool.js');
+  setPoolSize(config.agentWorkerPoolSize);
 
   const fastify = Fastify({
     logger: {
@@ -82,6 +86,10 @@ async function main() {
   // Real-time events stream for live monitoring (WebSocket on main app for @fastify/websocket)
   fastify.get('/api/v1/events/stream', { websocket: true }, (socket) => {
     addStreamClient(socket);
+  });
+
+  fastify.get('/api/v1/voice/monitor', { websocket: true }, (socket) => {
+    addVoiceMonitorClient(socket);
   });
 
   fastify.get('/voice', { websocket: true }, (socket) => {

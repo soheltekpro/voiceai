@@ -17,6 +17,33 @@ export const metrics = {
     help: 'Total call events emitted',
     labelNames: ['name'] as const,
   }),
+  providerFailoversTotal: new client.Counter({
+    name: 'voiceai_provider_failovers_total',
+    help: 'Total provider failovers (STT, LLM, TTS)',
+    labelNames: ['type'] as const,
+  }),
+  callsByRegion: new client.Counter({
+    name: 'voiceai_calls_by_region_total',
+    help: 'Total voice calls per region (multi-region routing)',
+    labelNames: ['region'] as const,
+  }),
+  callDurationByRegion: new client.Histogram({
+    name: 'voiceai_call_duration_seconds_by_region',
+    help: 'Call duration in seconds by region',
+    labelNames: ['region'] as const,
+    buckets: [5, 15, 30, 60, 120, 300],
+  }),
+  providerLatencyMs: new client.Histogram({
+    name: 'voiceai_provider_latency_ms',
+    help: 'STT, LLM, TTS provider latency in milliseconds',
+    labelNames: ['provider', 'type'] as const,
+    buckets: [50, 100, 200, 400, 800, 1600],
+  }),
+  providerSwitchCount: new client.Counter({
+    name: 'voiceai_provider_switch_count_total',
+    help: 'Number of provider switches due to latency threshold exceeded',
+    labelNames: ['type'] as const,
+  }),
 };
 
 export async function registerMetrics(app: FastifyInstance): Promise<void> {

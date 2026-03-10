@@ -32,27 +32,45 @@ from livekit.plugins import google, openai, silero
 
 load_dotenv()
 
-# Backend RAG: optional. Set VOICEAI_API_URL and VOICEAI_API_KEY for V2V RAG.
+# Backend: optional. Set VOICEAI_API_URL and VOICEAI_API_TOKEN (or VOICEAI_API_KEY) for V2V RAG and event forwarding.
 VOICEAI_API_URL = (os.getenv("VOICEAI_API_URL") or "http://127.0.0.1:3000").rstrip("/")
-VOICEAI_API_KEY = (os.getenv("VOICEAI_API_KEY") or "").strip()
+VOICEAI_API_TOKEN = (os.getenv("VOICEAI_API_TOKEN") or os.getenv("VOICEAI_API_KEY") or "").strip()
 
 
 async def retrieve_rag_chunks(query: str, knowledge_base_id: str, limit: int = 5) -> list[dict[str, Any]]:
     """Call backend POST /api/v1/rag/retrieve. Returns list of {content, documentId, score}. On failure returns []."""
-    if not query or not knowledge_base_id or not VOICEAI_API_KEY:
+    if not query or not knowledge_base_id or not VOICEAI_API_TOKEN:
         return []
     url = f"{VOICEAI_API_URL}/api/v1/rag/retrieve"
-    headers = {"Authorization": f"Bearer {VOICEAI_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {VOICEAI_API_TOKEN}", "Content-Type": "application/json"}
     payload = {"knowledgeBaseId": knowledge_base_id, "query": query, "limit": limit}
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("chunks") or []
-    except Exception as e:
-        logger.warning("RAG retrieve failed: %s", e)
-        return []
+    last_err: Exception | None = None
+    for attempt in range(2):  # one retry on 429
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
+                resp.raise_for_status()
+                data = resp.json()
+                return data.get("chunks") or []
+        except httpx.HTTPStatusError as e:
+            last_err = e
+            if e.response.status_code == 429:
+                if attempt == 0:
+                    logger.warning(
+                        "RAG 429 Too Many Requests (embedding API rate limit). Retrying once in 2s."
+                    )
+                    await asyncio.sleep(2.0)
+                    continue
+                logger.warning(
+                    "RAG still rate limited after retry. Reduce RAG calls or increase OpenAI tier."
+                )
+            break
+        except Exception as e:
+            last_err = e
+            break
+    if last_err:
+        logger.warning("RAG retrieve failed: %s", last_err)
+    return []
 
 
 async def send_voiceai_event(
@@ -63,14 +81,28 @@ async def send_voiceai_event(
     """Send a call event to the VoiceAI backend (persisted + broadcast to admin dashboard)."""
     if not call_session_id or not VOICEAI_API_URL:
         return
+    if not VOICEAI_API_TOKEN:
+        logger.warning(
+            "VOICEAI_API_TOKEN not set. Events will not be sent to backend. "
+            "Set VOICEAI_API_TOKEN or VOICEAI_API_KEY in .env"
+        )
+        return
     url = f"{VOICEAI_API_URL}/api/v1/calls/{call_session_id}/events"
-    headers: dict[str, str] = {"Content-Type": "application/json"}
-    if VOICEAI_API_KEY:
-        headers["Authorization"] = f"Bearer {VOICEAI_API_KEY}"
     body = {"event": event_name, "payload": payload or {}}
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {VOICEAI_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    logger.info("Sending VoiceAI event", extra={"event": event_name, "payload": body})
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, json=body, headers=headers, timeout=5.0)
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            if resp.status_code != 200:
+                logger.warning(
+                    "VoiceAI event failed: %s %s",
+                    resp.status_code,
+                    resp.text[:500] if resp.text else "",
+                )
             resp.raise_for_status()
     except Exception as e:
         logger.warning("send_voiceai_event %s failed: %s", event_name, e)
@@ -137,13 +169,15 @@ def _create_realtime_llm():
             voice="alloy",
         )
     elif AI_PROVIDER == "GEMINI":
-        # Longer timeout for Gemini Live API handshake (default 10s can be too short)
-        conn_options = APIConnectOptions(timeout=30.0, max_retry=3)
+        # Use the native-audio model ID that supports bidiGenerateContent (Live API). "gemini-2.5-flash" is not valid for Live.
+        # Shorter timeout (15s) for faster fail/retry and lower perceived latency; slightly lower temperature for more focused replies.
+        conn_options = APIConnectOptions(timeout=15.0, max_retry=2)
         return google.realtime.RealtimeModel(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-flash-native-audio-preview-12-2025",
             voice="Puck",
             instructions=SYSTEM_INSTRUCTION,
             language="en-US",
+            temperature=0.7,
             conn_options=conn_options,
         )
     else:
@@ -154,9 +188,16 @@ def _create_realtime_llm():
 
 
 def _create_tts_for_say():
-    """Create a TTS instance for session.say() (opening line). Realtime model does not provide TTS for arbitrary text."""
-    # Use OpenAI TTS for deterministic opening line; voice matches realtime when OPENAI
-    return openai.TTS(model="gpt-4o-mini-tts", voice="alloy")
+    """Create a TTS instance for session.say() (opening line). Uses the same provider as AI_PROVIDER (OPENAI or GEMINI)."""
+    if AI_PROVIDER == "OPENAI":
+        return openai.TTS(model="gpt-4o-mini-tts", voice="alloy")
+    if AI_PROVIDER == "GEMINI":
+        # Gemini TTS uses GOOGLE_API_KEY (same as realtime); no Cloud ADC needed
+        return google.beta.GeminiTTS(
+            model="gemini-2.5-flash-preview-tts",
+            voice_name="Puck",
+        )
+    raise ValueError(f"AI_PROVIDER must be OPENAI or GEMINI, got: {AI_PROVIDER!r}")
 
 
 class Assistant(Agent):
@@ -166,30 +207,8 @@ class Assistant(Agent):
         super().__init__(instructions=(instructions or SYSTEM_INSTRUCTION))
 
     async def on_enter(self) -> None:
-        """LiveKit lifecycle hook: speak the opening line from backend so the greeting is deterministic (no LLM)."""
-        try:
-            userdata = getattr(self.session, "userdata", None)
-            if userdata is None:
-                return
-            opening_line = (userdata.get("openingLine") or "").strip()
-            call_session_id = (userdata.get("callSessionId") or "").strip()
-            # Do not speak markdown headers or prompt metadata (e.g. "# Title" or "System prompt:")
-            if not opening_line or opening_line.startswith("#") or opening_line.lower().startswith("system prompt"):
-                return
-            logger.info("on_enter: saying opening line from backend")
-            print("Saying opening line from backend (on_enter)", flush=True)
-            if call_session_id:
-                await send_voiceai_event(call_session_id, "agent.speaking", {"text": "", "timestamp": int(time.time() * 1000)})
-            handle = self.session.say(opening_line, allow_interruptions=True)
-            await handle
-            if call_session_id:
-                await send_voiceai_event(
-                    call_session_id,
-                    "agent.finished",
-                    {"text": opening_line, "timestamp": int(time.time() * 1000)},
-                )
-        except Exception as e:
-            logger.warning("on_enter greeting failed: %s", e)
+        """Greeting is played in entrypoint after session.start() via session.say(); do not generate any reply here."""
+        pass
 
 
 server = AgentServer()
@@ -269,27 +288,53 @@ async def entrypoint(ctx: JobContext) -> None:
     knowledge_base_id: str | None = (job_meta.get("knowledgeBaseId") or "").strip() or None
     call_session_id: str | None = (job_meta.get("callSessionId") or "").strip() or None
 
-    # Session userdata: openingLine and callSessionId for on_enter() greeting and event reporting
-    session_userdata: dict[str, str] = {
-        "openingLine": opening_line or "",
+    # Session userdata: callSessionId for event publishing (greeting played in entrypoint after start via session.say)
+    session_userdata: dict[str, Any] = {
         "callSessionId": call_session_id or "",
     }
     # TTS required for session.say() (opening line); realtime model does not synthesize arbitrary text
     tts = _create_tts_for_say()
-    session = AgentSession(
-        llm=llm,
-        vad=vad,
-        tts=tts,
-        userdata=session_userdata,
-    )
+    # Lower min_interruption_duration so the agent stops sooner when user speaks (helps Gemini feel more responsive to barge-in)
+    try:
+        session = AgentSession(
+            llm=llm,
+            vad=vad,
+            tts=tts,
+            userdata=session_userdata,
+            min_interruption_duration=0.3,
+        )
+    except TypeError:
+        session = AgentSession(llm=llm, vad=vad, tts=tts, userdata=session_userdata)
 
-    # Language guardrail: respond in the same language as the caller; do not switch unless caller does
-    LANGUAGE_RULE = """
-Always respond in the SAME language as the caller.
-If the caller speaks English, respond only in English.
-Do not switch languages unless the caller clearly switches language first.
+    # Critical: realtime model must never speak on connect. Only one greeting is played via session.say(); model responds only after user transcript.
+    SILENCE_FIRST = """
+You must NEVER generate speech when the call first connects. Remain completely silent until the user has spoken.
+A greeting is played automatically by the system—do not say hello, hi, or any greeting yourself.
+Your first response must come ONLY after you receive the user's first utterance. Do not auto-reply or speak before the user speaks.
 """.strip()
-    base_instructions = LANGUAGE_RULE + "\n\n" + user_prompt
+    # Language guardrail: lock to caller's language; RAG or KB in other languages must not change response language
+    LANGUAGE_RULE = """
+CRITICAL — Language: You must respond ONLY in the SAME language the caller is using. If the caller speaks English, respond only in English. If the caller speaks Hindi, respond only in Hindi. Do NOT switch languages mid-call unless the caller explicitly switches first. Even if the knowledge base, course names, or context contain text in another language (e.g. Japanese), you must still speak to the caller in THEIR language. Translate or summarize that content into the caller's language; never reply in a different language.
+""".strip()
+    # Interruption: stop immediately when the user speaks; do not finish the sentence or add a follow-up (reduces "agent keeps speaking then replies again" with Gemini).
+    INTERRUPT_RULE = """
+When the user interrupts you (starts speaking while you are talking), stop speaking immediately. Do not finish your sentence, do not say "as I was saying," and do not repeat what you were saying. Respond only to what the user just said.
+""".strip()
+    # Shorter responses reduce latency and feel more responsive (helps especially with Gemini).
+    CONCISE_RULE = """
+Keep responses concise and to the point. One or two short sentences when possible. Avoid long monologues unless the user explicitly asks for detail.
+""".strip()
+    base_instructions = (
+        SILENCE_FIRST
+        + "\n\n"
+        + LANGUAGE_RULE
+        + "\n\n"
+        + INTERRUPT_RULE
+        + "\n\n"
+        + CONCISE_RULE
+        + "\n\n"
+        + user_prompt
+    )
     print("Language guardrail applied", flush=True)
     print("System prompt loaded", flush=True)
 
@@ -308,7 +353,7 @@ Do not switch languages unless the caller clearly switches language first.
             base_instructions
             + "\n\nUse the following knowledge when answering the user.\n\n"
             + rag_context.strip()
-            + "\n\nAnswer naturally and conversationally based on the above when relevant."
+            + "\n\nAnswer naturally and conversationally based on the above when relevant. Remember: respond only in the caller's language, even if the knowledge above is in another language."
         )
 
     async def _on_user_transcribed_async(ev: Any) -> None:
@@ -328,6 +373,11 @@ Do not switch languages unless the caller clearly switches language first.
                 await send_voiceai_event(call_session_id, "transcript.partial", payload)
 
         if not is_final or not transcript or not knowledge_base_id:
+            return
+        # Skip RAG for trivial inputs (saves embedding calls and reduces 429 rate limits)
+        trivial = transcript.strip().lower()
+        if len(trivial) <= 2 or trivial in ("hello", "hi", "hey", "yes", "no", "ok", "okay", "thanks", "thank you", "bye", "goodbye"):
+            logger.debug("Skipping RAG for trivial query: %r", transcript[:50])
             return
         logger.info("RAG query: %s", transcript[:80] + ("..." if len(transcript) > 80 else ""))
         try:
@@ -357,14 +407,59 @@ Do not switch languages unless the caller clearly switches language first.
             logger.debug("No RAG context found (no chunks returned)")
             print("No RAG context found", flush=True)
 
+    # Only interrupt when the agent is actually speaking (user barge-in). If we interrupt on every user transcript
+    # while the agent is listening, we prevent the agent from ever responding.
+    agent_speaking: list[bool] = [False]
+
+    def _interrupt_agent() -> None:
+        """Stop agent speech. Only call when agent is speaking and user is barging in."""
+        interrupt_fn = getattr(session, "interrupt", None)
+        if callable(interrupt_fn):
+            try:
+                interrupt_fn()
+                logger.debug("Called session.interrupt() (barge-in)")
+            except Exception as e:
+                logger.debug("session.interrupt() failed: %s", e)
+            return
+        current = getattr(session, "current_speech", None)
+        if current is not None and hasattr(current, "interrupt"):
+            try:
+                current.interrupt()
+                logger.debug("Called current_speech.interrupt() (barge-in)")
+            except Exception as e:
+                logger.debug("current_speech.interrupt() failed: %s", e)
+
     def _on_user_transcribed(ev: Any) -> None:
-        """Sync wrapper: framework requires sync callback; schedule async RAG handler."""
+        """Sync wrapper: interrupt only if agent is speaking (barge-in); then run async RAG/events."""
+        if agent_speaking[0]:
+            _interrupt_agent()
         asyncio.create_task(_on_user_transcribed_async(ev))
+
+    def _on_user_state_changed(ev: Any) -> None:
+        """When user starts speaking, interrupt only if agent is currently speaking (barge-in)."""
+        new_state = getattr(ev, "new_state", None) or (ev.get("new_state") if isinstance(ev, dict) else None)
+        if new_state == "speaking" and agent_speaking[0]:
+            _interrupt_agent()
+
+    def _on_agent_state_changed(ev: Any) -> None:
+        """Track when agent is speaking so we only interrupt on barge-in, not when user is speaking normally."""
+        new_state = getattr(ev, "new_state", None) or (ev.get("new_state") if isinstance(ev, dict) else None)
+        agent_speaking[0] = new_state == "speaking"
 
     try:
         session.on("user_input_transcribed", _on_user_transcribed)
     except Exception as e:
         logger.debug("Could not subscribe to user_input_transcribed: %s", e)
+
+    try:
+        session.on("user_state_changed", _on_user_state_changed)
+    except Exception as e:
+        logger.debug("Could not subscribe to user_state_changed: %s", e)
+
+    try:
+        session.on("agent_state_changed", _on_agent_state_changed)
+    except Exception as e:
+        logger.debug("Could not subscribe to agent_state_changed: %s", e)
 
     # Capture assistant reply text from conversation_item_added for transcript payload
     last_assistant_text: list[str] = [""]
@@ -392,14 +487,49 @@ Do not switch languages unless the caller clearly switches language first.
 
     session.on("metrics_collected", _on_metrics)
 
-    # Greeting is handled only in Assistant.on_enter() via session.say(openingLine); no generate_reply at startup
+    # Startup order: start session -> play greeting via session.say (only path) -> model waits for user input.
+    # No generate_reply(), no greeting in on_enter or conversation_item_added. Model must not speak until user transcript.
+    if hasattr(session, "auto_reply"):
+        session.auto_reply = False
+        logger.info("Disabled auto_reply before session start (greeting will play via session.say)")
+
     print("Applying base instructions to session", flush=True)
     assistant = Assistant(instructions=base_instructions)
-    await session.start(
-        room=ctx.room,
-        agent=assistant,
-    )
+    await session.start(room=ctx.room, agent=assistant)
     print("Session started", flush=True)
+
+    # Single greeting path: play configured opening line via session.say (agent TTS voice). Exactly once.
+    greeting_played = False
+    valid_opening = (
+        opening_line
+        and not opening_line.startswith("#")
+        and not opening_line.lower().startswith("system prompt")
+    )
+    if valid_opening and not greeting_played:
+        greeting_played = True
+        logger.info("Playing greeting via session.say")
+        print("Playing greeting via session.say", flush=True)
+        if call_session_id:
+            await send_voiceai_event(call_session_id, "agent.speaking", {"text": "", "timestamp": int(time.time() * 1000)})
+        try:
+            handle = session.say(opening_line, allow_interruptions=True)
+            await handle
+        except Exception as e:
+            logger.warning("session.say(opening_line) failed: %s", e)
+        if call_session_id:
+            await send_voiceai_event(
+                call_session_id,
+                "agent.finished",
+                {"text": opening_line, "timestamp": int(time.time() * 1000)},
+            )
+        logger.info("Greeting finished, waiting for user input")
+        print("Greeting finished, waiting for user input", flush=True)
+
+    # Re-enable AI responses after greeting (model only responds after user transcript from here on)
+    if hasattr(session, "auto_reply"):
+        session.auto_reply = True
+        logger.info("Enabling auto reply after greeting")
+        print("Enabling auto reply after greeting", flush=True)
 
     async def _log_final_usage() -> None:
         s = usage_collector.get_summary()

@@ -15,8 +15,10 @@ export type AgentCreatePayload = {
   systemPrompt?: string;
   sttProvider?: string | null;
   llmProvider?: string | null;
+  llmModel?: string | null;
   ttsProvider?: string | null;
   voice?: string;
+  temperature?: number | null;
   language?: string;
   voiceProvider?: 'OPENAI' | 'ELEVENLABS';
   maxCallDurationSeconds?: number;
@@ -84,4 +86,69 @@ export async function replaceAgent(id: string, payload: AgentCreatePayload): Pro
 /** Delete an agent. */
 export async function deleteAgent(id: string): Promise<void> {
   return apiDelete(`${BASE}/agents/${id}`);
+}
+
+export type PromptOptimizationItem = {
+  id: string;
+  suggestion: string;
+  createdAt: string;
+};
+
+/** Fetch latest AI prompt optimization suggestions for an agent. */
+export async function fetchPromptOptimizations(
+  agentId: string,
+  limit?: number
+): Promise<{ items: PromptOptimizationItem[] }> {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return apiGet<{ items: PromptOptimizationItem[] }>(`${BASE}/agents/${agentId}/prompt-optimization${q}`);
+}
+
+/** Generate a new prompt optimization suggestion from recent call evaluations. */
+export async function generatePromptOptimization(agentId: string): Promise<PromptOptimizationItem> {
+  return apiPost<PromptOptimizationItem>(`${BASE}/agents/${agentId}/prompt-optimization`, {});
+}
+
+// --- Prompt versions (A/B testing) ---
+
+export type PromptVersionItem = {
+  id: string;
+  version: number;
+  systemPrompt: string;
+  isActive: boolean;
+  trafficShare: number;
+  createdAt: string;
+};
+
+export type PromptPerformanceItem = {
+  promptVersionId: string;
+  version: number;
+  trafficShare: number;
+  isActive: boolean;
+  callsTotal: number;
+  conversionRate: number | null;
+  avgScore: number | null;
+  avgDurationSeconds: number | null;
+};
+
+export async function fetchPromptVersions(agentId: string): Promise<{ items: PromptVersionItem[] }> {
+  return apiGet<{ items: PromptVersionItem[] }>(`${BASE}/agents/${agentId}/prompt-versions`);
+}
+
+export async function createPromptVersion(
+  agentId: string,
+  payload: { systemPrompt: string; isActive?: boolean; trafficShare?: number }
+): Promise<PromptVersionItem> {
+  return apiPost<PromptVersionItem>(`${BASE}/agents/${agentId}/prompt-version`, payload);
+}
+
+export async function fetchPromptPerformance(agentId: string): Promise<{ items: PromptPerformanceItem[] }> {
+  return apiGet<{ items: PromptPerformanceItem[] }>(`${BASE}/agents/${agentId}/prompt-performance`);
+}
+
+export async function updatePromptVersion(
+  agentId: string,
+  versionId: string,
+  payload: { isActive?: boolean; trafficShare?: number }
+): Promise<PromptVersionItem> {
+  return apiPatch<PromptVersionItem>(`${BASE}/agents/${agentId}/prompt-versions/${versionId}`, payload);
 }

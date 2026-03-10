@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchCall, fetchCallEvents, fetchCallMessages } from '../../api/calls';
+import { fetchCall, fetchCallEvents, fetchCallMessages, fetchCallOutcome, fetchCallGuidance, fetchCallEvaluation, type CallOutcome } from '../../api/calls';
 import type { Call, CallEvent, Paginated } from '../types';
 import type { ConversationMessage } from '../../api/calls';
+import { Target, Lightbulb, Star } from 'lucide-react';
 
 export function CallDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -10,6 +11,9 @@ export function CallDetailPage() {
   const [call, setCall] = useState<Call | null>(null);
   const [eventsData, setEventsData] = useState<Paginated<CallEvent> | null>(null);
   const [messagesData, setMessagesData] = useState<Paginated<ConversationMessage> | null>(null);
+  const [outcome, setOutcome] = useState<CallOutcome | null | false>(null);
+  const [guidance, setGuidance] = useState<Array<{ id: string; suggestion: string; createdAt: string }>>([]);
+  const [evaluation, setEvaluation] = useState<{ score: number; strengths: string; improvements: string } | null | false>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -24,6 +28,24 @@ export function CallDetailPage() {
       setCall(c);
       setEventsData(e);
       setMessagesData(m);
+      try {
+        const o = await fetchCallOutcome(callId);
+        setOutcome(o);
+      } catch {
+        setOutcome(false);
+      }
+      try {
+        const { items } = await fetchCallGuidance(callId);
+        setGuidance(items ?? []);
+      } catch {
+        setGuidance([]);
+      }
+      try {
+        const ev = await fetchCallEvaluation(callId);
+        setEvaluation(ev);
+      } catch {
+        setEvaluation(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load call');
     }
@@ -126,6 +148,69 @@ export function CallDetailPage() {
                 {call.recordingDuration != null && (
                   <p className="mt-1 text-xs text-slate-500">Duration: {call.recordingDuration}s</p>
                 )}
+              </div>
+            )}
+            {outcome && (
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                  <Target className="h-3.5 w-3.5" /> Call outcome
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-200">Outcome:</span>
+                    <span className="text-emerald-300">{outcome.outcome}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-slate-400">Confidence:</span>
+                    <span className="text-slate-200">{Math.round(outcome.confidence * 100)}%</span>
+                  </div>
+                  <p className="text-sm text-slate-300 pt-1 border-t border-slate-700">{outcome.summary}</p>
+                </div>
+              </div>
+            )}
+            {outcome === false && (
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="text-xs text-slate-500">Call outcome: not yet detected</div>
+              </div>
+            )}
+            {evaluation && (
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                  <Star className="h-3.5 w-3.5" /> Call Quality
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 space-y-3">
+                  <div className="font-semibold text-slate-200">
+                    Call Quality Score: {Math.round(evaluation.score)}%
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">Strengths:</div>
+                    <p className="text-sm text-slate-300">{evaluation.strengths}</p>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1">Improvements:</div>
+                    <p className="text-sm text-slate-300">{evaluation.improvements}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {evaluation === false && (
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="text-xs text-slate-500">Call quality: evaluation not yet available</div>
+              </div>
+            )}
+            {guidance.length > 0 && (
+              <div className="mt-4 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
+                  <Lightbulb className="h-3.5 w-3.5" /> AI Suggestions
+                </div>
+                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 space-y-2">
+                  <p className="text-sm text-slate-200">
+                    <span className="text-slate-400">Suggestion:</span> {guidance[0].suggestion}
+                  </p>
+                  {guidance.length > 1 && (
+                    <p className="text-xs text-slate-500">{guidance.length} suggestions recorded during the call.</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

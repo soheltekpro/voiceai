@@ -8,6 +8,8 @@ export type AgentType = 'PIPELINE' | 'V2V';
 export type CallStartRequest = {
   agentId: string;
   clientType: 'BROWSER' | 'PHONE' | 'UNKNOWN';
+  regionId?: string;
+  regionalWsBaseUrl?: string | null;
 };
 
 export type CallStartResult = (PipelineStartResult | RealtimeStartResult) & {
@@ -39,7 +41,12 @@ export class AgentOrchestrator {
       return { ...res, agentType };
     }
 
-    const res = await this.pipeline.startCall({ agentId: agent.id, clientType: req.clientType });
+    const res = await this.pipeline.startCall({
+      agentId: agent.id,
+      clientType: req.clientType,
+      regionId: req.regionId,
+      regionalWsBaseUrl: req.regionalWsBaseUrl,
+    });
     return { ...res, agentType };
   }
 }

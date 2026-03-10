@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { AccessToken } from 'livekit-server-sdk';
@@ -9,6 +9,7 @@ import { finalizeCallSession } from '../../calls/analytics.js';
 import { checkCanStartCall, recordCallUsage } from '../../services/usage.js';
 import { getCallQueue, getCallQueueEvents } from '../../infra/queues.js';
 import type { CallEventName } from '../../events/types.js';
+import { resolveVoiceRegionWithFailover } from '../../voice/region-resolver.js';
 
 /**
  * Call start result (keeps compatibility with existing frontend VoiceAgentPhase1).
@@ -22,6 +23,8 @@ export type CallStartSessionResponse = {
   agentType: 'PIPELINE' | 'V2V';
   engine: 'pipeline' | 'v2v';
   callSessionId: string;
+  /** Resolved voice region (e.g. us-east, eu-west, ap-south) for multi-region routing. */
+  regionId?: string;
   wsUrl?: string;
   wsSessionId?: string;
   roomName?: string;
@@ -38,7 +41,7 @@ export async function registerCallOrchestratorRoutes(app: FastifyInstance): Prom
     clientType: z.enum(['BROWSER', 'PHONE', 'UNKNOWN']).default('BROWSER'),
   }).refine((d) => d.agent_id ?? d.agentId, { message: 'agent_id or agentId required' });
 
-  app.post('/calls/start', async (req, reply) => {
+  app.post('/calls/start', async (req: FastifyRequest<{ Body: unknown }>, reply) => {
     const workspaceId = getWorkspaceId(req);
     const body = StartSchema.parse(req.body);
     const agentId = body.agent_id ?? body.agentId!;
@@ -51,6 +54,22 @@ export async function registerCallOrchestratorRoutes(app: FastifyInstance): Prom
       const limitCheck = await checkCanStartCall(workspaceId);
       if (!limitCheck.allowed) {
         return reply.code(403).send({ message: limitCheck.reason ?? 'Usage limit exceeded' });
+      }
+
+      const clientIp = req.ip ?? req.headers['x-forwarded-for'] ?? req.headers['x-real-ip'] ?? '';
+      const ip = typeof clientIp === 'string' ? clientIp : Array.isArray(clientIp) ? clientIp[0] : '';
+      let regionId: string | undefined;
+      let regionalWsBaseUrl: string | null | undefined;
+      try {
+        const resolved = await resolveVoiceRegionWithFailover(ip);
+        regionId = resolved.regionId;
+        const base = resolved.wsBaseUrl ?? '';
+        // Skip regional URL when it's a placeholder (example.com) or in development — client should connect to same origin
+        const isPlaceholder = /example\.com$/i.test(base) || /\.example\./i.test(base);
+        const isDev = process.env.NODE_ENV === 'development';
+        regionalWsBaseUrl = base && !isPlaceholder && !isDev ? base : undefined;
+      } catch {
+        // use default region
       }
 
       // Insert record in calls table (worker will attach callSessionId)
@@ -71,6 +90,8 @@ export async function registerCallOrchestratorRoutes(app: FastifyInstance): Prom
         callId: call.id,
         agentId,
         clientType: body.clientType,
+        ...(regionId && { regionId }),
+        ...(regionalWsBaseUrl != null && { regionalWsBaseUrl }),
       });
 
       // Wait for worker to return session details (keeps API response shape intact)

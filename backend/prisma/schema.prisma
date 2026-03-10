@@ -94,8 +94,213 @@ model Workspace {
   workspacePlans  WorkspacePlan[]
   workspaceUsages WorkspaceUsage[]
   webhooks        Webhook[]
+  voiceUsages       VoiceUsage[]
+  workspaceVoicePlan WorkspaceVoicePlan?
+  workspaceBilling  WorkspaceBilling?
+  billingEvents     BillingEvent[]
+  voiceConversationMemories VoiceConversationMemory[]
+  voiceCallOutcomes        VoiceCallOutcome[]
+  voiceCallGuidances       VoiceCallGuidance[]
+  voiceCallEvaluations     VoiceCallEvaluation[]
+  voicePromptOptimizations VoicePromptOptimization[]
+  voicePromptVersions      VoicePromptVersion[]
 
   @@map("workspaces")
+}
+
+model WorkspaceVoicePlan {
+  workspaceId           String   @unique
+  planName              String
+  monthlyCallMinutes    Int      @default(0)   // 0 = unlimited
+  monthlyLLMTokens      Int      @default(0)   // 0 = unlimited
+  monthlyTTSCharacters  Int      @default(0)   // 0 = unlimited
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_voice_plan")
+}
+
+enum BillingSubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+}
+
+model WorkspaceBilling {
+  id                    String                    @id @default(uuid())
+  workspaceId            String                    @unique
+  stripeCustomerId      String?
+  stripeSubscriptionId   String?
+  planName              String
+  status                BillingSubscriptionStatus @default(ACTIVE)
+  subscriptionItemIds   Json?                     // { callMinutes?: string, llmTokens?: string, ttsCharacters?: string } for metered usage
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("workspace_billing")
+}
+
+model BillingEvent {
+  id             String   @id @default(uuid())
+  stripeEventId  String   @unique
+  workspaceId    String?
+  eventType      String
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("billing_events")
+}
+
+model VoiceConversationMemory {
+  id          String    @id @default(uuid())
+  workspaceId String
+  phoneNumber String
+  summary     String
+  lastCallId  String?
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, phoneNumber])
+  @@index([workspaceId, phoneNumber])
+  @@map("voice_conversation_memory")
+}
+
+model VoiceCallOutcome {
+  id               String   @id @default(uuid())
+  callId           String   @unique
+  workspaceId      String
+  promptVersionId  String?  // A/B: which prompt version handled the call
+  outcome          String
+  confidence       Float
+  summary          String
+  createdAt        DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([outcome])
+  @@index([promptVersionId])
+  @@map("voice_call_outcome")
+}
+
+model VoiceCallGuidance {
+  id           String   @id @default(uuid())
+  callId       String
+  workspaceId  String
+  suggestion   String
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([callId])
+  @@map("voice_call_guidance")
+}
+
+model VoiceCallEvaluation {
+  id           String   @id @default(uuid())
+  callId       String   @unique
+  workspaceId  String
+  score        Float
+  strengths    String
+  improvements String
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("voice_call_evaluation")
+}
+
+model VoicePromptOptimization {
+  id          String   @id @default(uuid())
+  workspaceId String
+  agentId     String
+  suggestion  String   @db.Text
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@map("voice_prompt_optimization")
+}
+
+model VoicePromptVersion {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  agentId      String
+  version      Int
+  systemPrompt String   @db.Text
+  isActive     Boolean  @default(false)
+  trafficShare Int      @default(100)
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([agentId])
+  @@map("voice_prompt_version")
+}
+
+enum PricingType {
+  PER_MINUTE
+  PER_TOKEN
+  PER_CHARACTER
+}
+
+model ProviderPricing {
+  id           String      @id @default(uuid())
+  providerName String
+  pricingType  PricingType
+  pricePerUnit Decimal     @db.Decimal(12, 6)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([providerName, pricingType])
+  @@index([providerName])
+  @@map("provider_pricing")
+}
+
+model VoiceUsage {
+  id                  String    @id @default(uuid())
+  callId              String
+  workspaceId         String
+  agentId             String
+  startedAt           DateTime
+  endedAt             DateTime?
+  audioInputSeconds   Float     @default(0)
+  audioOutputSeconds  Float     @default(0)
+  llmInputTokens      Int       @default(0)
+  llmOutputTokens     Int       @default(0)
+  ttsCharacters       Int       @default(0)
+  sttProvider         String?
+  llmProvider         String?
+  ttsProvider         String?
+  sttCost             Float     @default(0)
+  llmCost             Float     @default(0)
+  ttsCost             Float     @default(0)
+  totalCost           Float     @default(0)
+  createdAt           DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, endedAt])
+  @@map("voice_usage")
 }
 
 model Webhook {
@@ -274,6 +479,7 @@ model Call {
   recordingDuration Int?        // seconds
   tokensUsed        Int?
   callSessionId     String?     // link to call_sessions for pipeline/v2v
+  promptVersionId   String?    // A/B: which prompt version handled this call
 
   workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversationMessages ConversationMessage[]
@@ -283,6 +489,7 @@ model Call {
   @@index([startedAt])
   @@index([status])
   @@index([callSessionId])
+  @@index([promptVersionId])
   @@map("calls")
 }
 
@@ -306,9 +513,13 @@ model AgentSettings {
   language               String                @default("en")
   voiceProvider          VoiceProvider         @default(OPENAI)
   voiceName              String                @default("alloy")
-  sttProvider            String?
-  llmProvider            String?
-  ttsProvider            String?
+  sttProvider            String?               // openai | deepgram | assemblyai
+  sttModel               String?               // e.g. whisper-1, nova-2
+  llmProvider            String?               // openai | google | anthropic
+  llmModel               String?               // e.g. gpt-4o, gemini-1.5-flash, claude-3-haiku
+  ttsProvider            String?               // openai | elevenlabs | playht
+  ttsVoice               String?               // voice id per provider
+  temperature            Float?                @default(0.7) // 0–2 for LLM
   maxCallDurationSeconds Int                   @default(900)
   interruptionBehavior   InterruptionBehavior  @default(BARGE_IN_STOP_AGENT)
   knowledgeBaseId        String?
@@ -370,9 +581,10 @@ model DocumentChunk {
 }
 
 model CallSession {
-  id          String            @id @default(uuid())
-  agentId     String?
-  clientType  CallClientType    @default(UNKNOWN)
+  id               String            @id @default(uuid())
+  agentId          String?
+  promptVersionId  String?           // A/B: which prompt version used for this session
+  clientType       CallClientType    @default(UNKNOWN)
   status      CallSessionStatus @default(ACTIVE)
   startedAt   DateTime          @default(now())
   endedAt     DateTime?
@@ -392,6 +604,7 @@ model CallSession {
   messages CallMessage[]
 
   @@index([agentId])
+  @@index([promptVersionId])
   @@index([startedAt])
   @@index([status, startedAt])
   @@map("call_sessions")

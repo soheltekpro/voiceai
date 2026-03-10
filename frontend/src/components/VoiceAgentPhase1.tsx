@@ -8,6 +8,7 @@ import { Phone, PhoneOff } from 'lucide-react';
 import { Room, RoomEvent } from 'livekit-client';
 import { apiGet, apiPost } from '../api/client';
 import type { Agent } from '../admin/types';
+import { useStreamingAudioPlayer } from '../hooks/useStreamingAudioPlayer';
 
 type CallStartResultPipeline = {
   agentType: 'PIPELINE';
@@ -49,13 +50,23 @@ type LifecycleEvent = {
 };
 
 function buildWsFullUrl(wsPath: string): string {
+  if (!wsPath || typeof wsPath !== 'string') return `ws://localhost:3000/api/v1/voice?sessionId=`;
+  const trimmed = wsPath.trim();
+  // Defensive: if backend sent a concatenated URL (e.g. ws://127.0.0.1:3000wss://voice-us.example.com/...), use the last absolute URL
+  const idxWss = trimmed.lastIndexOf('wss://');
+  const idxWs = trimmed.lastIndexOf('ws://');
+  const lastIdx = idxWss >= 0 && idxWs >= 0 ? Math.max(idxWss, idxWs) : idxWss >= 0 ? idxWss : idxWs;
+  if (lastIdx >= 0) {
+    let extracted = trimmed.slice(lastIdx).replace(/^wsss:\/\//i, 'wss://').replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://');
+    if (extracted.includes('/api/v1/voice')) return extracted;
+  }
   if (import.meta.env.VITE_WS_VOICE_URL) {
     const base = import.meta.env.VITE_WS_VOICE_URL as string;
-    return base.startsWith('ws') ? `${base.replace(/\/voice.*$/, '')}${wsPath}` : `ws://localhost:3000${wsPath}`;
+    return base.startsWith('ws') ? `${base.replace(/\/voice.*$/, '')}${trimmed}` : `ws://localhost:3000${trimmed}`;
   }
-  if (typeof window === 'undefined') return `ws://localhost:3000${wsPath}`;
+  if (typeof window === 'undefined') return `ws://localhost:3000${trimmed}`;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}${wsPath}`;
+  return `${protocol}//${window.location.host}${trimmed}`;
 }
 
 export function VoiceAgentPhase1() {
@@ -78,8 +89,8 @@ export function VoiceAgentPhase1() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const agentTextAccumRef = useRef('');
-  const playbackAbortedRef = useRef(false);
   const [partialTranscript, setPartialTranscript] = useState('');
+  const { playChunk, stop: stopAudio, reset: resetAudio } = useStreamingAudioPlayer();
 
   const addEvent = useCallback((name: string, payload?: Record<string, unknown>) => {
     setLifecycleEvents((prev) => [...prev, { name, ts: Date.now(), payload }]);
@@ -124,7 +135,6 @@ export function VoiceAgentPhase1() {
         setAgentText('');
         setTranscript('');
         setPartialTranscript('');
-        playbackAbortedRef.current = false;
         send({
           type: 'config',
           payload: {
@@ -137,24 +147,6 @@ export function VoiceAgentPhase1() {
         addEvent('call.connected');
       };
 
-      const playAudioChunk = (b64: string) => {
-        if (playbackAbortedRef.current) return;
-        const binary = atob(b64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const ctx = audioContextRef.current ?? new AudioContext();
-        if (!audioContextRef.current) audioContextRef.current = ctx;
-        const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-        ctx.decodeAudioData(buf).then((buffer) => {
-            if (playbackAbortedRef.current) return;
-            const source = ctx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(ctx.destination);
-            source.start(0);
-          })
-          .catch(() => {});
-      };
-
       ws.onmessage = (event: MessageEvent) => {
         if (typeof event.data !== 'string') return;
         try {
@@ -165,6 +157,10 @@ export function VoiceAgentPhase1() {
               break;
             case 'transcript':
             case 'transcript_final':
+              setTranscript((msg.payload.text as string) ?? '');
+              setPartialTranscript('');
+              break;
+            case 'user_transcript_final':
               setTranscript((msg.payload.text as string) ?? '');
               setPartialTranscript('');
               addEvent('speech.detected', { text: msg.payload.text });
@@ -180,19 +176,19 @@ export function VoiceAgentPhase1() {
             case 'agent_audio_start':
               agentTextAccumRef.current = '';
               setAgentText('');
-              playbackAbortedRef.current = false;
+              resetAudio();
               addEvent('agent.reply');
               break;
             case 'agent_audio':
             case 'agent_audio_chunk': {
               const b64 = msg.payload.base64 as string;
-              if (b64) playAudioChunk(b64);
+              if (b64) playChunk(b64);
               break;
             }
             case 'agent_audio_end':
               break;
             case 'agent_stopped':
-              playbackAbortedRef.current = true;
+              stopAudio();
               break;
             case 'error':
               setError((msg.payload.message as string) ?? 'Unknown error');
@@ -216,7 +212,7 @@ export function VoiceAgentPhase1() {
 
       ws.onerror = () => setError('WebSocket error');
     },
-    [selectedAgentId, addEvent, send]
+    [selectedAgentId, addEvent, send, playChunk, stopAudio, resetAudio]
   );
 
   const connectV2V = useCallback(

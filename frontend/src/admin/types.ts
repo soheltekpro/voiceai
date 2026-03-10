@@ -5,8 +5,12 @@ export type AgentSettings = {
   voiceProvider: 'OPENAI' | 'ELEVENLABS';
   voiceName: string;
   sttProvider?: string | null;
+  sttModel?: string | null;
   llmProvider?: string | null;
+  llmModel?: string | null;
   ttsProvider?: string | null;
+  ttsVoice?: string | null;
+  temperature?: number | null;
   maxCallDurationSeconds: number;
   interruptionBehavior: 'BARGE_IN_STOP_AGENT' | 'IGNORE_WHILE_SPEAKING';
   knowledgeBaseId?: string | null;

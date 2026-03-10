@@ -22,6 +22,10 @@ export type CallStartJob = {
   callId: string;
   agentId: string;
   clientType: 'BROWSER' | 'PHONE' | 'UNKNOWN';
+  /** Resolved region for multi-region voice routing. */
+  regionId?: string;
+  /** Regional WebSocket base URL (e.g. wss://voice-us.example.com) for client to connect. */
+  regionalWsBaseUrl?: string | null;
 };
 
 export function createCallQueue(redis: RedisClient) {

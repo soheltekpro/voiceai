@@ -18,6 +18,7 @@ import {
   Settings,
   ChevronRight,
   Building2,
+  Brain,
   Users,
   Key,
   Webhook,
@@ -53,8 +54,10 @@ const navSections = [
     label: 'MONITOR',
     items: [
       { to: '/admin/analytics', label: 'Analytics', icon: Activity },
+      { to: '/admin/voice-analytics', label: 'Voice Analytics', icon: Radio },
       { to: '/admin/billing', label: 'Billing', icon: CreditCard },
       { to: '/admin/usage', label: 'Usage', icon: BarChart3 },
+      { to: '/admin/memory', label: 'Conversation memory', icon: Brain },
     ],
   },
   {

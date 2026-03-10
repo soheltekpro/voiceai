@@ -29,6 +29,7 @@ import { ApiKeysPage } from './admin/pages/ApiKeysPage';
 import { BillingPage } from './admin/pages/BillingPage';
 import { UsagePage } from './admin/pages/UsagePage';
 import { AnalyticsPage } from './admin/pages/AnalyticsPage';
+import { VoiceAnalyticsPage } from './admin/pages/VoiceAnalyticsPage';
 import { WebhooksPage } from './admin/pages/WebhooksPage';
 import { OperatorCallPage } from './admin/pages/OperatorCallPage';
 import { PlaceholderPage } from './admin/pages/PlaceholderPage';
@@ -69,6 +70,7 @@ function AppRouter() {
           <Route path="call-sessions" element={<CallSessionsPage />} />
           <Route path="call-sessions/:id" element={<CallSessionDetailPage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
+          <Route path="voice-analytics" element={<VoiceAnalyticsPage />} />
           <Route path="live-events" element={<LiveEventsPage />} />
           <Route path="operator-call" element={<OperatorCallPage />} />
           <Route path="workspace" element={<WorkspacePage />} />

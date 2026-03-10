@@ -15,6 +15,8 @@ const CallStartSchema = z.object({
   callId: z.string().uuid(),
   agentId: z.string().uuid(),
   clientType: z.enum(['BROWSER', 'PHONE', 'UNKNOWN']),
+  regionId: z.string().optional(),
+  regionalWsBaseUrl: z.string().nullable().optional(),
 });
 
 new Worker(
@@ -31,6 +33,8 @@ new Worker(
       const result = await orchestrator.startCall({
         agentId: data.agentId,
         clientType: data.clientType,
+        regionId: data.regionId,
+        regionalWsBaseUrl: data.regionalWsBaseUrl,
       });
 
       const callSessionId = (result as any).callSessionId as string | undefined;
@@ -64,6 +68,7 @@ new Worker(
         agentType: result.agentType,
         engine: (result as any).engine ?? 'pipeline',
         callSessionId: (result as any).callSessionId,
+        regionId: (result as any).regionId,
         wsUrl: (result as any).wsUrl,
         wsSessionId: (result as any).wsSessionId,
         // legacy aliases

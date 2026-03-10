@@ -65,3 +65,24 @@ export async function chatWithMessages(
   }
   return parts.join('');
 }
+
+/** One-off non-streaming completion (e.g. for summarization). Uses same model as streaming. */
+export async function complete(
+  systemPrompt: string,
+  userMessage: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const response = await openai.chat.completions.create(
+    {
+      model: config.openai.llmModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      stream: false,
+      max_tokens: 1000,
+    },
+    { signal }
+  );
+  return response.choices[0]?.message?.content?.trim() ?? '';
+}
