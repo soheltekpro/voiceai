@@ -56,20 +56,12 @@ async def retrieve_rag_chunks(query: str, knowledge_base_id: str, limit: int = 5
             last_err = e
             if e.response.status_code == 429:
                 if attempt == 0:
-                    logger.warning(
-                        "RAG 429 Too Many Requests (embedding API rate limit). Retrying once in 2s."
-                    )
                     await asyncio.sleep(2.0)
                     continue
-                logger.warning(
-                    "RAG still rate limited after retry. Reduce RAG calls or increase OpenAI tier."
-                )
             break
         except Exception as e:
             last_err = e
             break
-    if last_err:
-        logger.warning("RAG retrieve failed: %s", last_err)
     return []
 
 
@@ -82,10 +74,6 @@ async def send_voiceai_event(
     if not call_session_id or not VOICEAI_API_URL:
         return
     if not VOICEAI_API_TOKEN:
-        logger.warning(
-            "VOICEAI_API_TOKEN not set. Events will not be sent to backend. "
-            "Set VOICEAI_API_TOKEN or VOICEAI_API_KEY in .env"
-        )
         return
     url = f"{VOICEAI_API_URL}/api/v1/calls/{call_session_id}/events"
     body = {"event": event_name, "payload": payload or {}}
@@ -93,19 +81,12 @@ async def send_voiceai_event(
         "Authorization": f"Bearer {VOICEAI_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    logger.info("Sending VoiceAI event", extra={"event": event_name, "payload": body})
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, json=body, headers=headers)
-            if resp.status_code not in (200, 204):
-                logger.warning(
-                    "VoiceAI event failed: %s %s",
-                    resp.status_code,
-                    resp.text[:500] if resp.text else "",
-                )
             resp.raise_for_status()
-    except Exception as e:
-        logger.warning("send_voiceai_event %s failed: %s", event_name, e)
+    except Exception:
+        pass
 
 
 def _message_text(msg: Any) -> str:
@@ -247,13 +228,6 @@ def _on_metrics_collected(
     s = collector.get_summary()
     in_audio = m.input_token_details.audio_tokens
     out_audio = m.output_token_details.audio_tokens
-    logger.info(
-        "audio usage (this turn) | input_audio_tokens=%s output_audio_tokens=%s | total session: input=%s output=%s",
-        in_audio,
-        out_audio,
-        s.llm_input_audio_tokens,
-        s.llm_output_audio_tokens,
-    )
     if room is not None:
         payload = {
             "input_audio_tokens": s.llm_input_audio_tokens,
@@ -319,21 +293,10 @@ async def entrypoint(ctx: JobContext) -> None:
     # IMPORTANT: do not modify the agent-configured systemPrompt. The realtime model should receive it verbatim.
     base_instructions = user_prompt if user_prompt else SYSTEM_INSTRUCTION
 
-    print("System prompt loaded", flush=True)
-    logger.info(
-        "Loaded system prompt: %s",
-        (base_instructions[:200] + "..." if len(base_instructions) > 200 else base_instructions),
-    )
-    print(
-        "Loaded system prompt:",
-        (base_instructions[:200] + "..." if len(base_instructions) > 200 else base_instructions),
-        flush=True,
-    )
-
     if knowledge_base_id:
-        logger.info("V2V RAG enabled for knowledgeBaseId=%s", knowledge_base_id[:8] + "...")
+        pass  # RAG enabled
     else:
-        logger.debug("No knowledgeBaseId in metadata, RAG disabled for this session")
+        pass  # RAG disabled
 
     def _build_instructions(rag_context: str | None) -> str:
         if not rag_context or not rag_context.strip():
@@ -386,11 +349,9 @@ async def entrypoint(ctx: JobContext) -> None:
     async def on_transcript_final(text: str) -> None:
         """Run RAG only after transcript.final; never blocks reply. Schedules run_rag_async for next turn."""
         if not should_run_rag(text):
-            logger.debug("Skipping RAG for smalltalk query: %s", text)
             return
         now = time.time()
         if now - rag_last_run[0] < RAG_COOLDOWN_SEC:
-            logger.debug("Skipping RAG (cooldown %.0fs)", RAG_COOLDOWN_SEC)
             return
         asyncio.create_task(run_rag_async(text))
 
@@ -399,18 +360,14 @@ async def entrypoint(ctx: JobContext) -> None:
         rag_last_run[0] = time.time()
         try:
             chunks = await retrieve_rag_chunks(query, knowledge_base_id, limit=5)
-        except Exception as e:
-            logger.warning("RAG failed: %s", e)
+        except Exception:
             return
         if not chunks:
-            logger.debug("No RAG context found (no chunks returned)")
             return
         context = "\n".join((c.get("content") or "").strip() for c in chunks if c.get("content"))
         if not context.strip():
-            logger.debug("No RAG context found (empty chunks)")
             return
         rag_memory[0] = context.strip()
-        logger.info("Stored RAG context for next turn")
 
     async def _on_user_transcribed_async(ev: Any) -> None:
         """Send transcript events to backend; inject stored RAG at turn start; on final run RAG async for next turn."""
@@ -427,17 +384,14 @@ async def entrypoint(ctx: JobContext) -> None:
             if callable(update_fn):
                 try:
                     await update_fn(build_instructions())
-                except Exception as e:
-                    logger.warning("update_instructions failed: %s", e)
+                except Exception:
+                    pass
             rag_memory[0] = ""
 
         if call_session_id:
             if is_final:
-                logger.info("Sending transcript.final")
-                print("Sending transcript.final", flush=True)
                 asyncio.create_task(send_voiceai_event(call_session_id, "transcript.final", payload))
             else:
-                logger.debug("Sending transcript.partial")
                 asyncio.create_task(send_voiceai_event(call_session_id, "transcript.partial", payload))
 
         if not is_final or not transcript or not knowledge_base_id:
@@ -459,17 +413,15 @@ async def entrypoint(ctx: JobContext) -> None:
         if callable(interrupt_fn):
             try:
                 interrupt_fn()
-                logger.debug("Called session.interrupt() (barge-in)")
-            except Exception as e:
-                logger.debug("session.interrupt() failed: %s", e)
+            except Exception:
+                pass
             return
         current = getattr(session, "current_speech", None)
         if current is not None and hasattr(current, "interrupt"):
             try:
                 current.interrupt()
-                logger.debug("Called current_speech.interrupt() (barge-in)")
-            except Exception as e:
-                logger.debug("current_speech.interrupt() failed: %s", e)
+            except Exception:
+                pass
 
     def _on_user_transcribed(ev: Any) -> None:
         """Sync wrapper: interrupt only if agent is speaking (barge-in); trigger early reply on partials; run async RAG/events."""
@@ -480,7 +432,6 @@ async def entrypoint(ctx: JobContext) -> None:
         if transcript:
             if not user_has_spoken[0]:
                 user_has_spoken[0] = True
-                logger.info("user_has_spoken = True")
         if agent_speaking[0]:
             _interrupt_agent()
         # Start reply only once per user turn on meaningful partial transcripts (Vapi/Ulei-style).
@@ -495,9 +446,8 @@ async def entrypoint(ctx: JobContext) -> None:
             try:
                 session.generate_reply()
                 early_reply_triggered[0] = True
-                logger.debug("Triggered early reply from partial transcript")
-            except Exception as e:
-                logger.debug("generate_reply failed: %s", e)
+            except Exception:
+                pass
         asyncio.create_task(_on_user_transcribed_async(ev))
 
     def _on_user_state_changed(ev: Any) -> None:
@@ -513,25 +463,21 @@ async def entrypoint(ctx: JobContext) -> None:
         if new_state == "speaking":
             if not has_greeted[0]:
                 has_greeted[0] = True
-                logger.info("Assistant speaking (initial greeting)")
             elif has_greeted[0] and not user_has_spoken[0]:
-                logger.info("Blocking repeated greeting before user speaks")
                 _interrupt_agent()
 
     try:
         session.on("user_input_transcribed", _on_user_transcribed)
-    except Exception as e:
-        logger.debug("Could not subscribe to user_input_transcribed: %s", e)
-
+    except Exception:
+        pass
     try:
         session.on("user_state_changed", _on_user_state_changed)
-    except Exception as e:
-        logger.debug("Could not subscribe to user_state_changed: %s", e)
-
+    except Exception:
+        pass
     try:
         session.on("agent_state_changed", _on_agent_state_changed)
-    except Exception as e:
-        logger.debug("Could not subscribe to agent_state_changed: %s", e)
+    except Exception:
+        pass
 
     # Capture assistant reply text from conversation_item_added for transcript payload
     last_assistant_text: list[str] = [""]
@@ -564,16 +510,13 @@ async def entrypoint(ctx: JobContext) -> None:
                     and not user_has_spoken[0]
                     and _is_greeting_message(text)
                 ):
-                    logger.info("Suppressing repeated greeting (assistant message)")
                     _interrupt_agent()
                 last_assistant_text[0] = text
-                logger.info("Captured assistant transcript: %s", text[:80] + ("..." if len(text) > 80 else ""))
-                print("Sending assistant transcript:", text[:100] + ("..." if len(text) > 100 else ""), flush=True)
 
     try:
         session.on("conversation_item_added", _on_conversation_item_added)
-    except Exception as e:
-        logger.debug("Could not subscribe to conversation_item_added: %s", e)
+    except Exception:
+        pass
 
     # Track token usage (audio in + audio out) for this session
     usage_collector = UsageCollector()
@@ -583,36 +526,22 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session.on("metrics_collected", _on_metrics)
 
-    print("Applying base instructions to session", flush=True)
     assistant = Assistant(instructions=base_instructions)
     greeting_triggered: list[bool] = [False]
     await session.start(room=ctx.room, agent=assistant)
-    print("Session started", flush=True)
 
     # Gemini realtime does not auto-start; trigger first reply so the model produces the greeting.
-    # generate_reply() returns a SpeechHandle, not a coroutine; do not await.
     if not greeting_triggered[0]:
         greeting_triggered[0] = True
         try:
             gen_reply = getattr(session, "generate_reply", None)
             if callable(gen_reply):
                 gen_reply()
-                logger.info("Triggered initial greeting via generate_reply()")
-            else:
-                logger.warning("session.generate_reply not available; realtime model may not greet")
-        except Exception as e:
-            logger.warning("generate_reply (initial greeting) failed: %s", e)
+        except Exception:
+            pass
 
     async def _log_final_usage() -> None:
         s = usage_collector.get_summary()
-        logger.info(
-            "session usage total | input_audio_tokens=%s output_audio_tokens=%s | input_text=%s output_text=%s | total_tokens=%s",
-            s.llm_input_audio_tokens,
-            s.llm_output_audio_tokens,
-            s.llm_input_text_tokens,
-            s.llm_output_text_tokens,
-            s.llm_prompt_tokens + s.llm_completion_tokens,
-        )
         payload = {
             "input_audio_tokens": s.llm_input_audio_tokens,
             "output_audio_tokens": s.llm_output_audio_tokens,
