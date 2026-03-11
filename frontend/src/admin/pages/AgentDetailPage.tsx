@@ -18,7 +18,7 @@ import {
 import type { Tool } from '../../api/tools';
 import type { KnowledgeBase } from '../../api/knowledge-bases';
 import type { Agent, AgentSettings } from '../types';
-import { fetchProviderModels, fetchTtsVoices, type ProviderModel } from '../../api/providers';
+import { fetchProviderModels, fetchTtsVoices, fetchV2VModels, type ProviderModel } from '../../api/providers';
 
 const LLM_PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
@@ -36,6 +36,11 @@ const TTS_PROVIDERS_UI = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
   { value: 'playht', label: 'PlayHT' },
+];
+
+const V2V_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'google', label: 'Google' },
 ];
 
 function applyVariables(text: string, variables: Record<string, string>): string {
@@ -99,6 +104,11 @@ export function AgentDetailPage() {
     'BARGE_IN_STOP_AGENT'
   );
   const [knowledgeBaseId, setKnowledgeBaseId] = useState<string | null>(null);
+  const [v2vProvider, setV2vProvider] = useState<string>('openai');
+  const [v2vModel, setV2vModel] = useState<string>('');
+  const [v2vVoice, setV2vVoice] = useState<string>('');
+  const [v2vModels, setV2vModels] = useState<ProviderModel[]>([]);
+  const [v2vVoices, setV2vVoices] = useState<ProviderModel[]>([]);
   const [introMessage, setIntroMessage] = useState('');
   const [customVariables, setCustomVariables] = useState<Record<string, string>>({});
   const [variableKey, setVariableKey] = useState('');
@@ -157,6 +167,10 @@ export function AgentDetailPage() {
       setMaxCallDurationSeconds(s.maxCallDurationSeconds ?? 900);
       setInterruptionBehavior(s.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT');
       setKnowledgeBaseId(s.knowledgeBaseId ?? null);
+      const v2vP = (s.v2vProvider ?? 'openai').toLowerCase();
+      setV2vProvider(v2vP === 'google' ? 'google' : 'openai');
+      setV2vModel(s.v2vModel ?? '');
+      setV2vVoice(s.v2vVoice ?? '');
       setKnowledgeBases(kbList.items ?? []);
       await loadTools();
       try {
@@ -230,6 +244,22 @@ export function AgentDetailPage() {
     }
   }, [ttsProvider]);
 
+  // Fetch V2V models/voices when v2vProvider changes (for V2V agents)
+  useEffect(() => {
+    if (!agent || agent.agentType !== 'V2V') return;
+    fetchV2VModels(v2vProvider)
+      .then(({ models, voices }) => {
+        setV2vModels(models);
+        setV2vVoices(voices);
+        setV2vModel((prev) => (prev && models.some((m) => m.id === prev) ? prev : models[0]?.id ?? ''));
+        setV2vVoice((prev) => (prev && voices.some((v) => v.id === prev) ? prev : voices[0]?.id ?? ''));
+      })
+      .catch(() => {
+        setV2vModels([]);
+        setV2vVoices([]);
+      });
+  }, [agent?.agentType, v2vProvider]);
+
   const saveAgentTools = async () => {
     if (!agentId) return;
     setSavingTools(true);
@@ -266,6 +296,9 @@ export function AgentDetailPage() {
         maxCallDurationSeconds,
         interruptionBehavior,
         knowledgeBaseId: knowledgeBaseId || null,
+        v2vProvider: agent?.agentType === 'V2V' ? v2vProvider : null,
+        v2vModel: agent?.agentType === 'V2V' ? (v2vModel.trim() || null) : null,
+        v2vVoice: agent?.agentType === 'V2V' ? (v2vVoice.trim() || null) : null,
       });
       await load();
     } catch (e) {
@@ -524,6 +557,52 @@ export function AgentDetailPage() {
                       </div>
                     </div>
                   </>
+                )}
+                {agent?.agentType === 'V2V' && (
+                  <div className="border-t border-slate-800 pt-4">
+                    <h3 className="text-xs font-semibold text-slate-400 mb-2">V2V Realtime (provider, model, voice)</h3>
+                    <p className="text-xs text-slate-500 mb-2">
+                      Choose the realtime voice model and voice for this agent. Saved in agent config (no env vars).
+                    </p>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-0.5">Provider</label>
+                        <select
+                          value={v2vProvider}
+                          onChange={(e) => setV2vProvider(e.target.value)}
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                        >
+                          {V2V_PROVIDERS.map((p) => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-0.5">Model</label>
+                        <select
+                          value={v2vModel || (v2vModels[0]?.id ?? '')}
+                          onChange={(e) => setV2vModel(e.target.value)}
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                        >
+                          {v2vModels.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-0.5">Voice</label>
+                        <select
+                          value={v2vVoice || (v2vVoices[0]?.id ?? '')}
+                          onChange={(e) => setV2vVoice(e.target.value)}
+                          className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500/50 focus:outline-none"
+                        >
+                          {v2vVoices.map((v) => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 )}
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Language</label>

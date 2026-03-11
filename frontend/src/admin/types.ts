@@ -14,6 +14,9 @@ export type AgentSettings = {
   maxCallDurationSeconds: number;
   interruptionBehavior: 'BARGE_IN_STOP_AGENT' | 'IGNORE_WHILE_SPEAKING';
   knowledgeBaseId?: string | null;
+  v2vProvider?: string | null;
+  v2vModel?: string | null;
+  v2vVoice?: string | null;
   updatedAt: string;
 };
 

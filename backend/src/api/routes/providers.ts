@@ -16,6 +16,9 @@ const cache = new Map<string, { items: ModelItem[]; expires: number }>();
 /** Separate cache for TTS voices endpoint (key: tts_voices_<provider>). */
 const ttsVoicesCache = new Map<string, { voices: ModelItem[]; expires: number }>();
 
+/** Cache for V2V models/voices (key: v2v_<provider>). */
+const v2vCache = new Map<string, { models: ModelItem[]; voices: ModelItem[]; expires: number }>();
+
 function getCached(provider: string, type: string): ModelItem[] | null {
   const key = `${provider}:${type}`;
   const entry = cache.get(key);
@@ -220,6 +223,80 @@ const PLAYHT_VOICES: ModelItem[] = [
   { id: 's3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json', name: 'Female (CS)' },
 ];
 
+/** V2V voices – no public list API for realtime; use known sets per provider. */
+const V2V_OPENAI_VOICES: ModelItem[] = [
+  { id: 'alloy', name: 'Alloy' },
+  { id: 'echo', name: 'Echo' },
+  { id: 'fable', name: 'Fable' },
+  { id: 'onyx', name: 'Onyx' },
+  { id: 'nova', name: 'Nova' },
+  { id: 'shimmer', name: 'Shimmer' },
+];
+const V2V_GOOGLE_VOICES: ModelItem[] = [
+  { id: 'Puck', name: 'Puck' },
+  { id: 'Charon', name: 'Charon' },
+  { id: 'Kore', name: 'Kore' },
+  { id: 'Fenrir', name: 'Fenrir' },
+  { id: 'Aoede', name: 'Aoede' },
+  { id: 'Zephyr', name: 'Zephyr' },
+];
+
+/** Fetch OpenAI models and filter for Realtime API (id contains "realtime"). */
+async function fetchOpenAIRealtimeModels(): Promise<ModelItem[]> {
+  const key = config.openai.apiKey ?? process.env['OPENAI_API_KEY'] ?? '';
+  if (!key) return [];
+  const res = await fetch('https://api.openai.com/v1/models', {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { data?: Array<{ id: string }> };
+  const list = data.data ?? [];
+  const out: ModelItem[] = [];
+  for (const m of list) {
+    const id = (m.id ?? '').trim();
+    if (!id || !id.toLowerCase().includes('realtime')) continue;
+    const name = id.replace(/^gpt-/, 'GPT-').replace(/-/g, ' ');
+    out.push({ id, name });
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  if (out.length === 0) {
+    out.push({ id: 'gpt-4o-realtime-preview', name: 'GPT-4o Realtime' });
+  }
+  return out;
+}
+
+/** Fetch Google Gemini models and filter for Live/native-audio (id contains "native-audio" or "live"). */
+async function fetchGoogleRealtimeModels(): Promise<ModelItem[]> {
+  const key = config.google.apiKey ?? process.env['GOOGLE_API_KEY'] ?? '';
+  if (!key) return [];
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { models?: Array<{ name?: string }> };
+  const models = data.models ?? [];
+  const out: ModelItem[] = [];
+  for (const m of models) {
+    const rawName = m.name ?? '';
+    const id = rawName.replace(/^models\//, '').trim();
+    if (!id) continue;
+    const lower = id.toLowerCase();
+    if (!lower.includes('native-audio') && !lower.includes('live')) continue;
+    const name = id
+      .split('-')
+      .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(' ');
+    out.push({ id, name });
+  }
+  out.sort((a, b) => a.id.localeCompare(b.id));
+  if (out.length === 0) {
+    out.push({
+      id: 'gemini-2.5-flash-native-audio-preview-12-2025',
+      name: 'Gemini 2.5 Flash Native Audio',
+    });
+  }
+  return out;
+}
+
 export async function registerProviderRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Params: { provider: string };
@@ -273,6 +350,32 @@ export async function registerProviderRoutes(app: FastifyInstance): Promise<void
     setCache(provider, type, items);
     console.info('[providers] models loaded', { provider, type, count: items.length, voiceCapabilityFilter: type === 'llm' });
     return reply.send({ models: items });
+  });
+
+  /** GET /providers/v2v/models?provider=openai|google – V2V realtime models (fetched from provider) and voices (static). */
+  app.get<{
+    Querystring: { provider?: string };
+  }>('/providers/v2v/models', async (req, reply) => {
+    const provider = ((req.query as { provider?: string }).provider ?? '').toLowerCase().trim();
+    if (provider !== 'openai' && provider !== 'google') {
+      return reply.status(400).send({ error: 'provider must be openai or google' });
+    }
+    const cacheKey = `v2v_${provider}`;
+    const cached = v2vCache.get(cacheKey);
+    if (cached && Date.now() <= cached.expires) {
+      console.info('[providers] v2v models (cached)', { provider, modelsCount: cached.models.length });
+      return reply.send({ models: cached.models, voices: cached.voices });
+    }
+    const models =
+      provider === 'openai' ? await fetchOpenAIRealtimeModels() : await fetchGoogleRealtimeModels();
+    const voices = provider === 'openai' ? V2V_OPENAI_VOICES : V2V_GOOGLE_VOICES;
+    v2vCache.set(cacheKey, {
+      models,
+      voices,
+      expires: Date.now() + CACHE_TTL_MS,
+    });
+    console.info('[providers] v2v models fetched from provider', { provider, modelsCount: models.length });
+    return reply.send({ models, voices });
   });
 
   /** GET /providers/tts/voices?provider=elevenlabs – fetch TTS voices (ElevenLabs from API), 5-min cache. */

@@ -124,6 +124,9 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
             maxCallDurationSeconds: body.maxCallDurationSeconds ?? 900,
             interruptionBehavior: body.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT',
             knowledgeBaseId: body.knowledgeBaseId ?? null,
+            v2vProvider: body.v2vProvider ?? null,
+            v2vModel: body.v2vModel ?? null,
+            v2vVoice: body.v2vVoice ?? null,
           },
         },
       },
@@ -156,7 +159,7 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
         },
         include: { settings: true },
       });
-      if (body.systemPrompt !== undefined || body.voice !== undefined || body.language !== undefined || body.sttProvider !== undefined || body.sttModel !== undefined || body.llmProvider !== undefined || body.llmModel !== undefined || body.ttsProvider !== undefined || body.ttsVoice !== undefined || body.temperature !== undefined || body.voiceProvider !== undefined || body.maxCallDurationSeconds !== undefined || body.interruptionBehavior !== undefined || body.knowledgeBaseId !== undefined) {
+      if (body.systemPrompt !== undefined || body.voice !== undefined || body.language !== undefined || body.sttProvider !== undefined || body.sttModel !== undefined || body.llmProvider !== undefined || body.llmModel !== undefined || body.ttsProvider !== undefined || body.ttsVoice !== undefined || body.temperature !== undefined || body.voiceProvider !== undefined || body.maxCallDurationSeconds !== undefined || body.interruptionBehavior !== undefined || body.knowledgeBaseId !== undefined || body.v2vProvider !== undefined || body.v2vModel !== undefined || body.v2vVoice !== undefined) {
         await prisma.agentSettings.upsert({
           where: { agentId: id },
           create: {
@@ -175,6 +178,9 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
             maxCallDurationSeconds: body.maxCallDurationSeconds ?? 900,
             interruptionBehavior: body.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT',
             knowledgeBaseId: body.knowledgeBaseId ?? null,
+            v2vProvider: body.v2vProvider ?? null,
+            v2vModel: body.v2vModel ?? null,
+            v2vVoice: body.v2vVoice ?? null,
           },
           update: {
             ...(body.systemPrompt !== undefined ? { systemPrompt: body.systemPrompt } : {}),
@@ -191,6 +197,9 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
             ...(body.maxCallDurationSeconds !== undefined ? { maxCallDurationSeconds: body.maxCallDurationSeconds } : {}),
             ...(body.interruptionBehavior !== undefined ? { interruptionBehavior: body.interruptionBehavior } : {}),
             ...(body.knowledgeBaseId !== undefined ? { knowledgeBaseId: body.knowledgeBaseId ?? null } : {}),
+            ...(body.v2vProvider !== undefined ? { v2vProvider: body.v2vProvider ?? null } : {}),
+            ...(body.v2vModel !== undefined ? { v2vModel: body.v2vModel ?? null } : {}),
+            ...(body.v2vVoice !== undefined ? { v2vVoice: body.v2vVoice ?? null } : {}),
           },
         });
         const updated = await prisma.agent.findUnique({ where: { id }, include: { settings: true } });
@@ -235,6 +244,9 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
           maxCallDurationSeconds: body.maxCallDurationSeconds ?? 900,
           interruptionBehavior: body.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT',
           knowledgeBaseId: body.knowledgeBaseId ?? null,
+          v2vProvider: body.v2vProvider ?? null,
+          v2vModel: body.v2vModel ?? null,
+          v2vVoice: body.v2vVoice ?? null,
         },
         update: {
           systemPrompt: body.systemPrompt ?? exists.settings?.systemPrompt ?? 'You are a helpful voice assistant.',
@@ -251,6 +263,9 @@ export async function registerAgentRoutes(app: FastifyInstance): Promise<void> {
           maxCallDurationSeconds: body.maxCallDurationSeconds ?? exists.settings?.maxCallDurationSeconds ?? 900,
           interruptionBehavior: body.interruptionBehavior ?? exists.settings?.interruptionBehavior ?? 'BARGE_IN_STOP_AGENT',
           knowledgeBaseId: body.knowledgeBaseId ?? exists.settings?.knowledgeBaseId ?? null,
+          v2vProvider: body.v2vProvider ?? exists.settings?.v2vProvider ?? null,
+          v2vModel: body.v2vModel ?? exists.settings?.v2vModel ?? null,
+          v2vVoice: body.v2vVoice ?? exists.settings?.v2vVoice ?? null,
         },
       });
       const agent = await prisma.agent.findFirst({ where: { id, workspaceId }, include: { settings: true } });

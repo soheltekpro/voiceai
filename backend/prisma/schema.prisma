@@ -523,6 +523,9 @@ model AgentSettings {
   maxCallDurationSeconds Int                   @default(900)
   interruptionBehavior   InterruptionBehavior  @default(BARGE_IN_STOP_AGENT)
   knowledgeBaseId        String?
+  v2vProvider            String?               // openai | google — only for V2V agents
+  v2vModel               String?               // e.g. gpt-4o-realtime-preview, gemini-2.5-flash-native-audio-*
+  v2vVoice               String?               // e.g. alloy, Puck
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 

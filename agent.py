@@ -1,7 +1,7 @@
 """
 Standalone Realtime Voice AI Agent using LiveKit Python Agents Framework.
 
-Supports multi-model switch via AI_PROVIDER env var: OPENAI | GEMINI.
+V2V provider/model/voice come from agent config (v2vProvider, v2vModel, v2vVoice); fallback: AI_PROVIDER env (OPENAI | GEMINI).
 Uses Silero VAD for voice activity detection and user interruption handling.
 Tracks audio token usage (input + output) per session; logs and sends to frontend via room data.
 V2V: uses systemPrompt from job metadata as base instructions; when knowledgeBaseId is set, RAG retrieves chunks and appends to instructions.
@@ -161,30 +161,39 @@ SYSTEM_INSTRUCTION = (
 )
 
 
-def _create_realtime_llm():
-    """Create the realtime LLM based on AI_PROVIDER (OPENAI or GEMINI)."""
-    if AI_PROVIDER == "OPENAI":
+def _create_realtime_llm(provider: str | None = None, model: str | None = None, voice: str | None = None):
+    """Create the realtime LLM from agent config (provider, model, voice) or fall back to AI_PROVIDER env."""
+    # Prefer agent config from job metadata; fall back to env then defaults
+    p = (provider or "").strip().upper() or os.getenv("AI_PROVIDER", "OPENAI").strip().upper()
+    if p in ("OPENAI", "GOOGLE"):
+        pass
+    elif p == "GEMINI":
+        p = "GOOGLE"
+    else:
+        p = "OPENAI"
+
+    model = (model or "").strip() or None
+    voice = (voice or "").strip() or None
+
+    if p == "OPENAI":
         return openai.realtime.RealtimeModel(
-            model="gpt-4o-realtime-preview",
-            voice="alloy",
+            model=model or "gpt-4o-realtime-preview",
+            voice=voice or "alloy",
         )
-    elif AI_PROVIDER == "GEMINI":
-        # Use the native-audio model ID that supports bidiGenerateContent (Live API). "gemini-2.5-flash" is not valid for Live.
-        # Shorter timeout (15s) for faster fail/retry and lower perceived latency; slightly lower temperature for more focused replies.
+    if p == "GOOGLE":
         conn_options = APIConnectOptions(timeout=15.0, max_retry=2)
         return google.realtime.RealtimeModel(
-            model="gemini-2.5-flash-native-audio-preview-12-2025",
-            voice="Puck",
+            model=model or "gemini-2.5-flash-native-audio-preview-12-2025",
+            voice=voice or "Puck",
             instructions=SYSTEM_INSTRUCTION,
             language="en-US",
             temperature=0.7,
             conn_options=conn_options,
         )
-    else:
-        raise ValueError(
-            f"AI_PROVIDER must be 'OPENAI' or 'GEMINI', got: {AI_PROVIDER!r}. "
-            "Set AI_PROVIDER in the environment."
-        )
+    raise ValueError(
+        f"V2V provider must be 'OPENAI' or 'GOOGLE' (or GEMINI), got: {p!r}. "
+        "Set v2vProvider in agent settings or AI_PROVIDER in the environment."
+    )
 
 
 def _create_tts_for_say():
@@ -277,11 +286,14 @@ def _parse_job_metadata(ctx: JobContext) -> dict[str, Any]:
 @server.rtc_session(agent_name="realtime-voice-agent")
 async def entrypoint(ctx: JobContext) -> None:
     """Join the room and run the realtime speech-to-speech agent session."""
-    llm = _create_realtime_llm()
+    job_meta = _parse_job_metadata(ctx)
+    v2v_provider = (job_meta.get("v2vProvider") or "").strip() or None
+    v2v_model = (job_meta.get("v2vModel") or "").strip() or None
+    v2v_voice = (job_meta.get("v2vVoice") or "").strip() or None
+    llm = _create_realtime_llm(provider=v2v_provider, model=v2v_model, voice=v2v_voice)
     vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
 
     # V2V: read systemPrompt, openingLine, knowledgeBaseId from dispatch metadata (set by backend from agent config)
-    job_meta = _parse_job_metadata(ctx)
     system_prompt = (job_meta.get("systemPrompt") or "").strip()
     user_prompt = system_prompt if system_prompt else SYSTEM_INSTRUCTION
     opening_line: str | None = (job_meta.get("openingLine") or "").strip() or None

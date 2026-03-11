@@ -30,3 +30,15 @@ export async function fetchTtsVoices(provider: string): Promise<{ voices: Provid
   const res = await apiGet<TtsVoicesResponse>(`/api/v1/providers/tts/voices?provider=${p}`);
   return { voices: res.voices ?? [], error: res.error };
 }
+
+export type V2VModelsResponse = { models: ProviderModel[]; voices: ProviderModel[] };
+
+/**
+ * Fetch V2V (realtime voice) models and voices for a provider. Used by agent config for V2V agents.
+ * provider: 'openai' | 'google'
+ */
+export async function fetchV2VModels(provider: string): Promise<V2VModelsResponse> {
+  const p = encodeURIComponent(provider);
+  const res = await apiGet<V2VModelsResponse>(`/api/v1/providers/v2v/models?provider=${p}`);
+  return { models: res.models ?? [], voices: res.voices ?? [] };
+}

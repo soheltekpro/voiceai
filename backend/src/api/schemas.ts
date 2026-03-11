@@ -18,6 +18,9 @@ export const AgentCreateSchema = z.object({
   maxCallDurationSeconds: z.number().int().min(10).max(24 * 60 * 60).optional(),
   interruptionBehavior: z.enum(['BARGE_IN_STOP_AGENT', 'IGNORE_WHILE_SPEAKING']).optional(),
   knowledgeBaseId: z.string().uuid().optional().nullable(),
+  v2vProvider: z.string().max(32).optional().nullable(),
+  v2vModel: z.string().max(128).optional().nullable(),
+  v2vVoice: z.string().max(128).optional().nullable(),
 });
 
 export const AgentUpdateSchema = AgentCreateSchema.partial();
@@ -39,6 +42,9 @@ export const AgentSettingsUpsertSchema = z.object({
   maxCallDurationSeconds: z.number().int().min(10).max(24 * 60 * 60).optional(),
   interruptionBehavior: z.enum(['BARGE_IN_STOP_AGENT', 'IGNORE_WHILE_SPEAKING']).optional(),
   knowledgeBaseId: z.string().uuid().optional().nullable(),
+  v2vProvider: z.string().max(32).optional().nullable(),
+  v2vModel: z.string().max(128).optional().nullable(),
+  v2vVoice: z.string().max(128).optional().nullable(),
 });
 
 export const PaginationSchema = z.object({

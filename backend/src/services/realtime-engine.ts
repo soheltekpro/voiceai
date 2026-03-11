@@ -97,13 +97,25 @@ export class RealtimeEngine {
 
     let knowledgeBaseId: string | null = null;
     let systemPrompt: string = '';
+    let v2vProvider: string | null = null;
+    let v2vModel: string | null = null;
+    let v2vVoice: string | null = null;
     if (params.agentId) {
       const settings = await prisma.agentSettings.findUnique({
         where: { agentId: params.agentId },
-        select: { knowledgeBaseId: true, systemPrompt: true },
+        select: {
+          knowledgeBaseId: true,
+          systemPrompt: true,
+          v2vProvider: true,
+          v2vModel: true,
+          v2vVoice: true,
+        },
       });
       knowledgeBaseId = settings?.knowledgeBaseId ?? null;
       systemPrompt = (settings?.systemPrompt ?? '').trim() || 'You are a helpful voice assistant.';
+      v2vProvider = settings?.v2vProvider ?? null;
+      v2vModel = settings?.v2vModel ?? null;
+      v2vVoice = settings?.v2vVoice ?? null;
     } else {
       systemPrompt = 'You are a helpful voice assistant.';
     }
@@ -131,13 +143,25 @@ export class RealtimeEngine {
       },
     });
 
-    const dispatchMetadata: { callSessionId: string; agentId?: string; knowledgeBaseId?: string; systemPrompt: string; openingLine?: string } = {
+    const dispatchMetadata: {
+      callSessionId: string;
+      agentId?: string;
+      knowledgeBaseId?: string;
+      systemPrompt: string;
+      openingLine?: string;
+      v2vProvider?: string;
+      v2vModel?: string;
+      v2vVoice?: string;
+    } = {
       callSessionId: callSession.id,
       systemPrompt,
     };
     if (params.agentId) dispatchMetadata.agentId = params.agentId;
     if (knowledgeBaseId) dispatchMetadata.knowledgeBaseId = knowledgeBaseId;
     if (openingLine) dispatchMetadata.openingLine = openingLine;
+    if (v2vProvider) dispatchMetadata.v2vProvider = v2vProvider;
+    if (v2vModel) dispatchMetadata.v2vModel = v2vModel;
+    if (v2vVoice) dispatchMetadata.v2vVoice = v2vVoice;
 
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
