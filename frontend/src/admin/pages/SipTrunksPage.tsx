@@ -62,6 +62,7 @@ export function SipTrunksPage() {
         <h1 className="text-2xl font-bold text-white">SIP Trunks</h1>
         <p className="mt-1 text-slate-400">
           Configure SIP trunks (Twilio, Plivo, Telnyx). Use the trunk name as the PJSIP endpoint in Asterisk.
+          Then add numbers in Phone Numbers and place test calls from Outbound Calls.
         </p>
       </div>
 
@@ -75,7 +76,9 @@ export function SipTrunksPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-white">Add SIP trunk</CardTitle>
-            <CardDescription>Provider-specific config (e.g. credentials) goes in config JSON.</CardDescription>
+            <CardDescription>
+              Provider-specific config (e.g. credentials) goes in config JSON. Trunk name must match the PJSIP endpoint name in Asterisk (e.g. twilio-trunk).
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
