@@ -339,6 +339,8 @@ async def entrypoint(ctx: JobContext) -> None:
             "yes",
             "yeah",
             "hmm",
+            "go on",
+            "no thanks",
             "ठीक है",
             "हां",
             "मैं ठीक हूं",
@@ -357,6 +359,8 @@ async def entrypoint(ctx: JobContext) -> None:
     # - generate_reply() never waits for RAG; response starts from partial/final immediately.
     # - RAG runs only after transcript.final, in background; results stored for the next turn.
     # - Stored context is injected when building the next prompt, then cleared after use.
+    # Note: Long calls can feel slower over time because the realtime model sends full conversation
+    # history; larger context can increase time-to-first-audio. This is a limitation of the API.
     rag_memory: list[str] = [""]
     rag_last_run: list[float] = [0.0]
     RAG_COOLDOWN_SEC = 5.0
@@ -542,7 +546,12 @@ async def entrypoint(ctx: JobContext) -> None:
             if text:
                 if not has_greeted[0]:
                     has_greeted[0] = True
-                elif not user_has_spoken[0] and _is_greeting_message(text):
+                # Only suppress a *repeated* greeting (not the first one we triggered). First message has last_assistant_text empty.
+                elif (
+                    last_assistant_text[0]
+                    and not user_has_spoken[0]
+                    and _is_greeting_message(text)
+                ):
                     logger.info("Suppressing repeated greeting (assistant message)")
                     _interrupt_agent()
                 last_assistant_text[0] = text
