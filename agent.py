@@ -304,44 +304,19 @@ async def entrypoint(ctx: JobContext) -> None:
     except TypeError:
         session = AgentSession(llm=llm, vad=vad, userdata=session_userdata)
 
-    # Model-first greeting (no session.say): greet once when the call connects.
-    GREETING_RULE = """
-You are Priya from ABC Technology Training.
-When the call connects, greet the user naturally and introduce yourself.
+    # IMPORTANT: do not modify the agent-configured systemPrompt. The realtime model should receive it verbatim.
+    base_instructions = user_prompt if user_prompt else SYSTEM_INSTRUCTION
 
-Example greeting:
-Hello! This is Priya calling from ABC Technology Training. How are you doing today?
-Keep greetings short and friendly.
-Always respond in 1–2 sentences. Never produce long paragraphs.
-""".strip()
-    # Language guardrail: lock to caller's language; RAG or KB in other languages must not change response language
-    LANGUAGE_RULE = """
-CRITICAL — Language: You must respond ONLY in the SAME language the caller is using. If the caller speaks English, respond only in English. If the caller speaks Hindi, respond only in Hindi. Do NOT switch languages mid-call unless the caller explicitly switches first. Even if the knowledge base, course names, or context contain text in another language (e.g. Japanese), you must still speak to the caller in THEIR language. Translate or summarize that content into the caller's language; never reply in a different language.
-""".strip()
-    # Interruption: stop immediately when the user speaks; do not finish the sentence or add a follow-up (reduces "agent keeps speaking then replies again" with Gemini).
-    INTERRUPT_RULE = """
-When the user interrupts you (starts speaking while you are talking), stop speaking immediately. Do not finish your sentence, do not say "as I was saying," and do not repeat what you were saying. Respond only to what the user just said.
-""".strip()
-    # Keep replies short for consistent real-time voice.
-    CONCISE_RULE = """
-Always respond in 1–2 sentences. Never produce long paragraphs.
-""".strip()
-    base_instructions = (
-        GREETING_RULE
-        + "\n\n"
-        + LANGUAGE_RULE
-        + "\n\n"
-        + INTERRUPT_RULE
-        + "\n\n"
-        + CONCISE_RULE
-        + "\n\n"
-        + user_prompt
-    )
-    print("Language guardrail applied", flush=True)
     print("System prompt loaded", flush=True)
-
-    logger.info("Loaded system prompt: %s", (base_instructions[:120] + "..." if len(base_instructions) > 120 else base_instructions))
-    print("Loaded system prompt:", (base_instructions[:200] + "..." if len(base_instructions) > 200 else base_instructions), flush=True)
+    logger.info(
+        "Loaded system prompt: %s",
+        (base_instructions[:200] + "..." if len(base_instructions) > 200 else base_instructions),
+    )
+    print(
+        "Loaded system prompt:",
+        (base_instructions[:200] + "..." if len(base_instructions) > 200 else base_instructions),
+        flush=True,
+    )
 
     if knowledge_base_id:
         logger.info("V2V RAG enabled for knowledgeBaseId=%s", knowledge_base_id[:8] + "...")
@@ -351,12 +326,7 @@ Always respond in 1–2 sentences. Never produce long paragraphs.
     def _build_instructions(rag_context: str | None) -> str:
         if not rag_context or not rag_context.strip():
             return base_instructions
-        return (
-            base_instructions
-            + "\n\nUse the following knowledge when answering the user.\n\n"
-            + rag_context.strip()
-            + "\n\nAnswer naturally and conversationally based on the above when relevant. Remember: respond only in the caller's language, even if the knowledge above is in another language."
-        )
+        return base_instructions + "\n\nKnowledge:\n" + rag_context.strip()
 
     async def _on_user_transcribed_async(ev: Any) -> None:
         """Send transcript events to backend; on final transcript run RAG and update agent instructions."""
