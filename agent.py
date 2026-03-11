@@ -509,9 +509,7 @@ async def entrypoint(ctx: JobContext) -> None:
         try:
             gen_reply = getattr(session, "generate_reply", None)
             if callable(gen_reply):
-                await gen_reply(
-                    instructions="Greet the user naturally and introduce yourself. Keep it to 1–2 sentences."
-                )
+                await gen_reply()
                 logger.info("Triggered initial greeting via generate_reply()")
             else:
                 logger.warning("session.generate_reply not available; realtime model may not greet")
