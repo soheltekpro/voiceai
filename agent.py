@@ -207,7 +207,7 @@ class Assistant(Agent):
         super().__init__(instructions=(instructions or SYSTEM_INSTRUCTION))
 
     async def on_enter(self) -> None:
-        """Greeting is played in entrypoint after session.start() via session.say(); do not generate any reply here."""
+        """Greeting is triggered in entrypoint after session.start() via session.generate_reply(); no-op here."""
         pass
 
 
@@ -288,29 +288,31 @@ async def entrypoint(ctx: JobContext) -> None:
     knowledge_base_id: str | None = (job_meta.get("knowledgeBaseId") or "").strip() or None
     call_session_id: str | None = (job_meta.get("callSessionId") or "").strip() or None
 
-    # Session userdata: callSessionId for event publishing (greeting played in entrypoint after start via session.say)
+    # Session userdata: callSessionId for event publishing
     session_userdata: dict[str, Any] = {
         "callSessionId": call_session_id or "",
     }
-    # TTS required for session.say() (opening line); realtime model does not synthesize arbitrary text
-    tts = _create_tts_for_say()
+    # Realtime model handles speech output directly; we do not use session.say() for greetings.
     # Lower min_interruption_duration so the agent stops sooner when user speaks (helps Gemini feel more responsive to barge-in)
     try:
         session = AgentSession(
             llm=llm,
             vad=vad,
-            tts=tts,
             userdata=session_userdata,
             min_interruption_duration=0.3,
         )
     except TypeError:
-        session = AgentSession(llm=llm, vad=vad, tts=tts, userdata=session_userdata)
+        session = AgentSession(llm=llm, vad=vad, userdata=session_userdata)
 
-    # Critical: realtime model must never speak on connect. Only one greeting is played via session.say(); model responds only after user transcript.
-    SILENCE_FIRST = """
-You must NEVER generate speech when the call first connects. Remain completely silent until the user has spoken.
-A greeting is played automatically by the system—do not say hello, hi, or any greeting yourself.
-Your first response must come ONLY after you receive the user's first utterance. Do not auto-reply or speak before the user speaks.
+    # Model-first greeting (no session.say): greet once when the call connects.
+    GREETING_RULE = """
+You are Priya from ABC Technology Training.
+When the call connects, greet the user naturally and introduce yourself.
+
+Example greeting:
+Hello! This is Priya calling from ABC Technology Training. How are you doing today?
+Keep greetings short and friendly.
+Always respond in 1–2 sentences. Never produce long paragraphs.
 """.strip()
     # Language guardrail: lock to caller's language; RAG or KB in other languages must not change response language
     LANGUAGE_RULE = """
@@ -320,12 +322,12 @@ CRITICAL — Language: You must respond ONLY in the SAME language the caller is 
     INTERRUPT_RULE = """
 When the user interrupts you (starts speaking while you are talking), stop speaking immediately. Do not finish your sentence, do not say "as I was saying," and do not repeat what you were saying. Respond only to what the user just said.
 """.strip()
-    # Shorter responses reduce latency and feel more responsive (helps especially with Gemini).
+    # Keep replies short for consistent real-time voice.
     CONCISE_RULE = """
-Keep responses concise and to the point. One or two short sentences when possible. Avoid long monologues unless the user explicitly asks for detail.
+Always respond in 1–2 sentences. Never produce long paragraphs.
 """.strip()
     base_instructions = (
-        SILENCE_FIRST
+        GREETING_RULE
         + "\n\n"
         + LANGUAGE_RULE
         + "\n\n"
@@ -362,6 +364,8 @@ Keep responses concise and to the point. One or two short sentences when possibl
         is_final = getattr(ev, "is_final", False)
         ts_ms = int(time.time() * 1000)
         payload: dict[str, Any] = {"text": transcript, "timestamp": ts_ms}
+        if is_final and transcript:
+            user_has_spoken[0] = True
 
         if call_session_id:
             if is_final:
@@ -410,6 +414,8 @@ Keep responses concise and to the point. One or two short sentences when possibl
     # Only interrupt when the agent is actually speaking (user barge-in). If we interrupt on every user transcript
     # while the agent is listening, we prevent the agent from ever responding.
     agent_speaking: list[bool] = [False]
+    has_greeted: list[bool] = [False]
+    user_has_spoken: list[bool] = [False]
 
     def _interrupt_agent() -> None:
         """Stop agent speech. Only call when agent is speaking and user is barging in."""
@@ -431,6 +437,14 @@ Keep responses concise and to the point. One or two short sentences when possibl
 
     def _on_user_transcribed(ev: Any) -> None:
         """Sync wrapper: interrupt only if agent is speaking (barge-in); then run async RAG/events."""
+        transcript = (getattr(ev, "transcript", None) or "").strip()
+        is_final = getattr(ev, "is_final", False)
+        # Mark user has spoken on any transcript with text (partial or final) so we don't interrupt
+        # when the model starts responding during partials (Gemini realtime responds early).
+        if transcript:
+            if not user_has_spoken[0]:
+                user_has_spoken[0] = True
+                logger.info("user_has_spoken = True")
         if agent_speaking[0]:
             _interrupt_agent()
         asyncio.create_task(_on_user_transcribed_async(ev))
@@ -445,6 +459,13 @@ Keep responses concise and to the point. One or two short sentences when possibl
         """Track when agent is speaking so we only interrupt on barge-in, not when user is speaking normally."""
         new_state = getattr(ev, "new_state", None) or (ev.get("new_state") if isinstance(ev, dict) else None)
         agent_speaking[0] = new_state == "speaking"
+        if new_state == "speaking":
+            if not has_greeted[0]:
+                has_greeted[0] = True
+                logger.info("Assistant speaking (initial greeting)")
+            elif has_greeted[0] and not user_has_spoken[0]:
+                logger.info("Blocking repeated greeting before user speaks")
+                _interrupt_agent()
 
     try:
         session.on("user_input_transcribed", _on_user_transcribed)
@@ -464,12 +485,31 @@ Keep responses concise and to the point. One or two short sentences when possibl
     # Capture assistant reply text from conversation_item_added for transcript payload
     last_assistant_text: list[str] = [""]
 
+    def _is_greeting_message(message: str) -> bool:
+        """True if the assistant message looks like an initial greeting (block only these when user has not spoken)."""
+        if not message or not message.strip():
+            return False
+        m = message.strip().lower()
+        return (
+            m.startswith("hello")
+            or m.startswith("hi ")
+            or m.startswith("hi.")
+            or "this is priya" in m
+            or "calling from abc" in m
+            or "calling from" in m
+        )
+
     def _on_conversation_item_added(ev: Any) -> None:
         item = getattr(ev, "item", ev)
         role = getattr(item, "role", None) or (item.get("role") if isinstance(item, dict) else None)
         if role == "assistant":
             text = _message_text(item)
             if text:
+                if not has_greeted[0]:
+                    has_greeted[0] = True
+                elif not user_has_spoken[0] and _is_greeting_message(text):
+                    logger.info("Suppressing repeated greeting (assistant message)")
+                    _interrupt_agent()
                 last_assistant_text[0] = text
                 logger.info("Captured assistant transcript: %s", text[:80] + ("..." if len(text) > 80 else ""))
                 print("Sending assistant transcript:", text[:100] + ("..." if len(text) > 100 else ""), flush=True)
@@ -487,49 +527,26 @@ Keep responses concise and to the point. One or two short sentences when possibl
 
     session.on("metrics_collected", _on_metrics)
 
-    # Startup order: start session -> play greeting via session.say (only path) -> model waits for user input.
-    # No generate_reply(), no greeting in on_enter or conversation_item_added. Model must not speak until user transcript.
-    if hasattr(session, "auto_reply"):
-        session.auto_reply = False
-        logger.info("Disabled auto_reply before session start (greeting will play via session.say)")
-
     print("Applying base instructions to session", flush=True)
     assistant = Assistant(instructions=base_instructions)
+    greeting_triggered: list[bool] = [False]
     await session.start(room=ctx.room, agent=assistant)
     print("Session started", flush=True)
 
-    # Single greeting path: play configured opening line via session.say (agent TTS voice). Exactly once.
-    greeting_played = False
-    valid_opening = (
-        opening_line
-        and not opening_line.startswith("#")
-        and not opening_line.lower().startswith("system prompt")
-    )
-    if valid_opening and not greeting_played:
-        greeting_played = True
-        logger.info("Playing greeting via session.say")
-        print("Playing greeting via session.say", flush=True)
-        if call_session_id:
-            await send_voiceai_event(call_session_id, "agent.speaking", {"text": "", "timestamp": int(time.time() * 1000)})
+    # Gemini realtime does not auto-start; trigger first reply so the model produces the greeting.
+    if not greeting_triggered[0]:
+        greeting_triggered[0] = True
         try:
-            handle = session.say(opening_line, allow_interruptions=True)
-            await handle
+            gen_reply = getattr(session, "generate_reply", None)
+            if callable(gen_reply):
+                await gen_reply(
+                    instructions="Greet the user naturally and introduce yourself. Keep it to 1–2 sentences."
+                )
+                logger.info("Triggered initial greeting via generate_reply()")
+            else:
+                logger.warning("session.generate_reply not available; realtime model may not greet")
         except Exception as e:
-            logger.warning("session.say(opening_line) failed: %s", e)
-        if call_session_id:
-            await send_voiceai_event(
-                call_session_id,
-                "agent.finished",
-                {"text": opening_line, "timestamp": int(time.time() * 1000)},
-            )
-        logger.info("Greeting finished, waiting for user input")
-        print("Greeting finished, waiting for user input", flush=True)
-
-    # Re-enable AI responses after greeting (model only responds after user transcript from here on)
-    if hasattr(session, "auto_reply"):
-        session.auto_reply = True
-        logger.info("Enabling auto reply after greeting")
-        print("Enabling auto reply after greeting", flush=True)
+            logger.warning("generate_reply (initial greeting) failed: %s", e)
 
     async def _log_final_usage() -> None:
         s = usage_collector.get_summary()
