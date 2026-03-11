@@ -97,7 +97,7 @@ async def send_voiceai_event(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(url, json=body, headers=headers)
-            if resp.status_code != 200:
+            if resp.status_code not in (200, 204):
                 logger.warning(
                     "VoiceAI event failed: %s %s",
                     resp.status_code,
@@ -328,8 +328,76 @@ async def entrypoint(ctx: JobContext) -> None:
             return base_instructions
         return base_instructions + "\n\nKnowledge:\n" + rag_context.strip()
 
+    def should_run_rag(text: str) -> bool:
+        """Return False for smalltalk/short phrases to avoid excessive embedding calls and rate limits."""
+        if not text:
+            return False
+        t = text.lower().strip()
+        smalltalk = [
+            "ok",
+            "okay",
+            "yes",
+            "yeah",
+            "hmm",
+            "ठीक है",
+            "हां",
+            "मैं ठीक हूं",
+            "thanks",
+            "thank you",
+            "i'm fine",
+            "im fine",
+        ]
+        if t in smalltalk:
+            return False
+        if len(text) < 15:
+            return False
+        return True
+
+    # RAG pipeline contract:
+    # - generate_reply() never waits for RAG; response starts from partial/final immediately.
+    # - RAG runs only after transcript.final, in background; results stored for the next turn.
+    # - Stored context is injected when building the next prompt, then cleared after use.
+    rag_memory: list[str] = [""]
+    rag_last_run: list[float] = [0.0]
+    RAG_COOLDOWN_SEC = 5.0
+
+    def build_instructions() -> str:
+        """Instructions for this turn: base + stored RAG context if any. Cleared after use."""
+        if rag_memory[0]:
+            return base_instructions + "\n\nKnowledge:\n" + rag_memory[0].strip()
+        return base_instructions
+
+    async def on_transcript_final(text: str) -> None:
+        """Run RAG only after transcript.final; never blocks reply. Schedules run_rag_async for next turn."""
+        if not should_run_rag(text):
+            logger.debug("Skipping RAG for smalltalk query: %s", text)
+            return
+        now = time.time()
+        if now - rag_last_run[0] < RAG_COOLDOWN_SEC:
+            logger.debug("Skipping RAG (cooldown %.0fs)", RAG_COOLDOWN_SEC)
+            return
+        asyncio.create_task(run_rag_async(text))
+
+    async def run_rag_async(query: str) -> None:
+        """Background: retrieve chunks and store in rag_memory for the next turn. Never blocks reply."""
+        rag_last_run[0] = time.time()
+        try:
+            chunks = await retrieve_rag_chunks(query, knowledge_base_id, limit=5)
+        except Exception as e:
+            logger.warning("RAG failed: %s", e)
+            return
+        if not chunks:
+            logger.debug("No RAG context found (no chunks returned)")
+            return
+        context = "\n".join((c.get("content") or "").strip() for c in chunks if c.get("content"))
+        if not context.strip():
+            logger.debug("No RAG context found (empty chunks)")
+            return
+        rag_memory[0] = context.strip()
+        logger.info("Stored RAG context for next turn")
+
     async def _on_user_transcribed_async(ev: Any) -> None:
-        """Send transcript events to backend; on final transcript run RAG and update agent instructions."""
+        """Send transcript events to backend; inject stored RAG at turn start; on final run RAG async for next turn."""
         transcript = (getattr(ev, "transcript", None) or "").strip()
         is_final = getattr(ev, "is_final", False)
         ts_ms = int(time.time() * 1000)
@@ -337,55 +405,37 @@ async def entrypoint(ctx: JobContext) -> None:
         if is_final and transcript:
             user_has_spoken[0] = True
 
+        # Inject stored RAG from previous turn at start of this turn, then clear so it's used only once.
+        if transcript and rag_memory[0]:
+            update_fn = getattr(assistant, "update_instructions", None)
+            if callable(update_fn):
+                try:
+                    await update_fn(build_instructions())
+                except Exception as e:
+                    logger.warning("update_instructions failed: %s", e)
+            rag_memory[0] = ""
+
         if call_session_id:
             if is_final:
                 logger.info("Sending transcript.final")
                 print("Sending transcript.final", flush=True)
-                await send_voiceai_event(call_session_id, "transcript.final", payload)
+                asyncio.create_task(send_voiceai_event(call_session_id, "transcript.final", payload))
             else:
                 logger.debug("Sending transcript.partial")
-                await send_voiceai_event(call_session_id, "transcript.partial", payload)
+                asyncio.create_task(send_voiceai_event(call_session_id, "transcript.partial", payload))
 
         if not is_final or not transcript or not knowledge_base_id:
             return
-        # Skip RAG for trivial inputs (saves embedding calls and reduces 429 rate limits)
-        trivial = transcript.strip().lower()
-        if len(trivial) <= 2 or trivial in ("hello", "hi", "hey", "yes", "no", "ok", "okay", "thanks", "thank you", "bye", "goodbye"):
-            logger.debug("Skipping RAG for trivial query: %r", transcript[:50])
-            return
-        logger.info("RAG query: %s", transcript[:80] + ("..." if len(transcript) > 80 else ""))
-        try:
-            chunks = await retrieve_rag_chunks(transcript, knowledge_base_id, limit=5)
-        except Exception as e:
-            logger.warning("RAG retrieve error: %s", e)
-            chunks = []
-        if chunks:
-            context = "\n\n".join((c.get("content") or "").strip() for c in chunks if c.get("content"))
-            if context.strip():
-                new_instructions = _build_instructions(context)
-                try:
-                    # Agent may have update_instructions (session does not in this SDK version)
-                    update_fn = getattr(assistant, "update_instructions", None)
-                    if callable(update_fn):
-                        await update_fn(new_instructions)
-                        logger.info("Using RAG context (%d chunks)", len(chunks))
-                        print("Using RAG context", flush=True)
-                    else:
-                        logger.debug("Agent has no update_instructions, RAG context not applied mid-session")
-                except Exception as e:
-                    logger.warning("update_instructions failed: %s", e)
-            else:
-                logger.debug("No RAG context found (empty chunks)")
-                print("No RAG context found", flush=True)
-        else:
-            logger.debug("No RAG context found (no chunks returned)")
-            print("No RAG context found", flush=True)
+        if is_final:
+            early_reply_triggered[0] = False
+            await on_transcript_final(transcript)
 
     # Only interrupt when the agent is actually speaking (user barge-in). If we interrupt on every user transcript
     # while the agent is listening, we prevent the agent from ever responding.
     agent_speaking: list[bool] = [False]
     has_greeted: list[bool] = [False]
     user_has_spoken: list[bool] = [False]
+    early_reply_triggered: list[bool] = [False]
 
     def _interrupt_agent() -> None:
         """Stop agent speech. Only call when agent is speaking and user is barging in."""
@@ -406,7 +456,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 logger.debug("current_speech.interrupt() failed: %s", e)
 
     def _on_user_transcribed(ev: Any) -> None:
-        """Sync wrapper: interrupt only if agent is speaking (barge-in); then run async RAG/events."""
+        """Sync wrapper: interrupt only if agent is speaking (barge-in); trigger early reply on partials; run async RAG/events."""
         transcript = (getattr(ev, "transcript", None) or "").strip()
         is_final = getattr(ev, "is_final", False)
         # Mark user has spoken on any transcript with text (partial or final) so we don't interrupt
@@ -417,6 +467,21 @@ async def entrypoint(ctx: JobContext) -> None:
                 logger.info("user_has_spoken = True")
         if agent_speaking[0]:
             _interrupt_agent()
+        # Start reply only once per user turn on meaningful partial transcripts (Vapi/Ulei-style).
+        # generate_reply() returns a SpeechHandle, not a coroutine; do not use create_task or await.
+        if (
+            not agent_speaking[0]
+            and not early_reply_triggered[0]
+            and transcript
+            and len(transcript) > 6
+            and not is_final
+        ):
+            try:
+                session.generate_reply()
+                early_reply_triggered[0] = True
+                logger.debug("Triggered early reply from partial transcript")
+            except Exception as e:
+                logger.debug("generate_reply failed: %s", e)
         asyncio.create_task(_on_user_transcribed_async(ev))
 
     def _on_user_state_changed(ev: Any) -> None:
@@ -504,12 +569,13 @@ async def entrypoint(ctx: JobContext) -> None:
     print("Session started", flush=True)
 
     # Gemini realtime does not auto-start; trigger first reply so the model produces the greeting.
+    # generate_reply() returns a SpeechHandle, not a coroutine; do not await.
     if not greeting_triggered[0]:
         greeting_triggered[0] = True
         try:
             gen_reply = getattr(session, "generate_reply", None)
             if callable(gen_reply):
-                await gen_reply()
+                gen_reply()
                 logger.info("Triggered initial greeting via generate_reply()")
             else:
                 logger.warning("session.generate_reply not available; realtime model may not greet")
