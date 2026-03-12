@@ -48,17 +48,17 @@ export function WorkspacePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Workspace</h1>
-        <p className="mt-1 text-slate-400">Manage your workspace name and settings.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Workspace</h1>
+        <p className="mt-1 text-slate-600">Manage your workspace name and settings.</p>
       </div>
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
-      <Card className="max-w-lg border-slate-800 bg-slate-900/40">
+      <Card className="max-w-lg border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Workspace details</CardTitle>
+          <CardTitle className="text-slate-900">Workspace details</CardTitle>
           <CardDescription>
             {stored?.name ?? 'Current workspace'} · ID: {stored?.id ?? '—'}
           </CardDescription>
@@ -67,12 +67,12 @@ export function WorkspacePage() {
           {loaded && (
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <Label className="text-slate-300">Name</Label>
+                <Label className="text-slate-700">Name</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Workspace name"
-                  className="mt-1 bg-slate-800 border-slate-700"
+                  className="mt-1 bg-slate-200 border-slate-300"
                 />
               </div>
               <Button type="submit" disabled={saving}>

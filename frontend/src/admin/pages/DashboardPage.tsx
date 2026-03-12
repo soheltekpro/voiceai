@@ -40,38 +40,38 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-slate-400 mt-1">Overview of your Voice AI platform</p>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Dashboard</h1>
+        <p className="text-sm text-slate-600 mt-1">Overview of your Voice AI platform</p>
       </div>
 
       {/* Metric cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Total Agents</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Total Agents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{agentCount}</div>
+            <div className="text-2xl font-bold text-slate-900">{agentCount}</div>
             <p className="text-xs text-slate-500 mt-1">Pipeline & V2V agents</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Total Calls</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Total Calls</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{analytics?.calls ?? '—'}</div>
+            <div className="text-2xl font-bold text-slate-900">{analytics?.calls ?? '—'}</div>
             <p className="text-xs text-slate-500 mt-1">{analytics?.active ?? 0} active</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Call Duration</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Call Duration</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-slate-900">
               {analytics?.totalDurationSeconds != null
                 ? formatDuration(analytics.totalDurationSeconds)
                 : '—'}
@@ -81,10 +81,10 @@ export function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Success Rate</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Success Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-slate-900">
               {successRate != null ? `${successRate}%` : '—'}
             </div>
             <p className="text-xs text-slate-500 mt-1">Ended successfully</p>
@@ -94,12 +94,12 @@ export function DashboardPage() {
 
       {/* Action cards */}
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="hover:border-slate-700 transition-colors">
+        <Card className="hover:border-slate-300 transition-colors">
           <CardHeader>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 mb-2">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-400 mb-2">
               <Bot className="h-6 w-6" />
             </div>
-            <CardTitle className="text-white">Create Agent</CardTitle>
+            <CardTitle className="text-slate-900">Create Agent</CardTitle>
             <CardDescription>Create and configure voice agents (Pipeline or V2V).</CardDescription>
           </CardHeader>
           <CardContent>
@@ -112,12 +112,12 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="hover:border-slate-700 transition-colors">
+        <Card className="hover:border-slate-300 transition-colors">
           <CardHeader>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 mb-2">
               <Phone className="h-6 w-6" />
             </div>
-            <CardTitle className="text-white">Test Call</CardTitle>
+            <CardTitle className="text-slate-900">Test Call</CardTitle>
             <CardDescription>Start a test call in the browser with any agent.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -130,12 +130,12 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="hover:border-slate-700 transition-colors">
+        <Card className="hover:border-slate-300 transition-colors">
           <CardHeader>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 mb-2">
               <History className="h-6 w-6" />
             </div>
-            <CardTitle className="text-white">Call History</CardTitle>
+            <CardTitle className="text-slate-900">Call History</CardTitle>
             <CardDescription>View call sessions, transcripts, and analytics.</CardDescription>
           </CardHeader>
           <CardContent>

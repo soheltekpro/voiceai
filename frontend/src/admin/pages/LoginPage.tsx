@@ -33,46 +33,46 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900/50">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-slate-200 bg-white">
         <CardHeader>
-          <CardTitle className="text-white">Sign in</CardTitle>
+          <CardTitle className="text-slate-900">Sign in</CardTitle>
           <CardDescription>Voice AI Admin — use your email and password.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                 {error}
               </div>
             )}
             <div>
-              <Label className="text-slate-300">Email</Label>
+              <Label className="text-slate-700">Email</Label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="mt-1 bg-slate-800 border-slate-700"
+                className="mt-1 bg-white border-slate-300"
                 required
               />
             </div>
             <div>
-              <Label className="text-slate-300">Password</Label>
+              <Label className="text-slate-700">Password</Label>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 bg-slate-800 border-slate-700"
+                className="mt-1 bg-white border-slate-300"
                 required
               />
             </div>
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? 'Signing in…' : 'Sign in'}
             </Button>
-            <p className="text-center text-sm text-slate-400">
+            <p className="text-center text-sm text-slate-600">
               No account?{' '}
-              <Link to="/register" className="text-emerald-400 hover:underline">
+              <Link to="/register" className="text-emerald-600 hover:underline">
                 Register
               </Link>
             </p>

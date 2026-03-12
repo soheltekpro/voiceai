@@ -135,7 +135,7 @@ export function CallSessionDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link to="/admin/call-sessions" className="text-sm text-slate-400 hover:text-slate-200">
+          <Link to="/admin/call-sessions" className="text-sm text-slate-600 hover:text-slate-800">
             ← Call sessions
           </Link>
           <h1 className="text-xl font-semibold mt-2">Call events</h1>
@@ -143,7 +143,7 @@ export function CallSessionDetailPage() {
           <div className="mt-2 text-xs">
             <span
               className={`inline-flex items-center px-2 py-1 rounded border ${
-                liveConnected ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-slate-700 bg-slate-900 text-slate-400'
+                liveConnected ? 'border-emerald-400/50 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-slate-100 text-slate-600'
               }`}
             >
               {liveConnected ? 'Live connected' : 'Live disconnected'}
@@ -153,48 +153,161 @@ export function CallSessionDetailPage() {
         <button
           type="button"
           onClick={load}
-          className="px-3 py-2 rounded-md bg-slate-800 hover:bg-slate-700 text-sm font-medium"
+          className="px-3 py-2 rounded-md bg-slate-200 hover:bg-slate-300 text-sm font-medium"
         >
           Refresh
         </button>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-200 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-400/50 text-red-800 text-sm">
           {error}
         </div>
       )}
 
       {session && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-xs text-slate-500">Status</div>
-              <div className="text-slate-200 font-semibold">{session.status}</div>
+              <div className="text-slate-800 font-semibold">{session.status}</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Client</div>
-              <div className="text-slate-200 font-semibold">{session.clientType}</div>
+              <div className="text-slate-800 font-semibold">{session.clientType}</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Started</div>
-              <div className="text-slate-200">{new Date(session.startedAt).toLocaleString()}</div>
+              <div className="text-slate-800">{new Date(session.startedAt).toLocaleString()}</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Ended</div>
-              <div className="text-slate-200">
+              <div className="text-slate-800">
                 {session.endedAt ? new Date(session.endedAt).toLocaleString() : '—'}
               </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Duration</div>
-              <div className="text-slate-200">{session.durationSeconds != null ? `${session.durationSeconds}s` : '—'}</div>
+              <div className="text-slate-800">
+                {session.durationSeconds != null
+                  ? `${session.durationSeconds}s (${Math.floor(session.durationSeconds / 60)} min ${Math.floor(session.durationSeconds % 60)} sec)`
+                  : '—'}
+              </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Estimated cost</div>
-              <div className="text-slate-200">
+              <div className="text-slate-800">
                 {session.estimatedCostUsd != null ? `$${Number(session.estimatedCostUsd).toFixed(4)}` : '—'}
               </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Cost per minute</div>
+              <div className="text-slate-800">
+                {session.costPerMinuteUsd != null ? `$${session.costPerMinuteUsd.toFixed(4)}/min` : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {session?.costBreakdown && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-4">
+          <h3 className="text-sm font-semibold text-slate-800 mb-2">Cost breakdown (transparent)</h3>
+          <p className="text-xs text-slate-500 mb-4">V2V cost includes audio in/out (transcription + response). RAG embedding is billed separately.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            {(session.costBreakdown.v2vProvider || session.costBreakdown.v2vModel) && (
+              <>
+                <div className="flex justify-between items-baseline border-b border-slate-300 pb-2 col-span-full sm:col-span-1">
+                  <span className="text-slate-600">Provider & model</span>
+                  <span className="text-slate-800">
+                    {[session.costBreakdown.v2vProvider, session.costBreakdown.v2vModel].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline border-b border-slate-300 pb-2 col-span-full sm:col-span-1">
+                  <span className="text-slate-600">Model price (per 1M tokens)</span>
+                  <span className="text-slate-800">
+                    ${session.costBreakdown.inputRatePer1MUsd} in, ${session.costBreakdown.outputRatePer1MUsd} out
+                  </span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Audio in (tokens)</span>
+              <span className="text-slate-800 font-mono">{session.costBreakdown.audioInputTokens.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Audio out (tokens)</span>
+              <span className="text-slate-800 font-mono">{session.costBreakdown.audioOutputTokens.toLocaleString()}</span>
+            </div>
+            <div className="col-span-full flex justify-between items-start border-b border-slate-300 pb-2 gap-4">
+              <span className="text-slate-600 shrink-0">RAG / text input</span>
+              <span className="text-slate-600 text-xs text-right">{session.costBreakdown.ragTextTokensNote}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Total tokens</span>
+              <span className="text-slate-800 font-mono">{session.costBreakdown.totalTokens.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Input rate (per 1M tokens)</span>
+              <span className="text-slate-800">${session.costBreakdown.inputRatePer1MUsd.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Output rate (per 1M tokens)</span>
+              <span className="text-slate-800">${session.costBreakdown.outputRatePer1MUsd.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Price per token</span>
+              <span className="text-slate-800 text-right">
+                In ${session.costBreakdown.inputPricePerTokenUsd.toFixed(6)}/tok · Out ${session.costBreakdown.outputPricePerTokenUsd.toFixed(6)}/tok
+              </span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Input cost</span>
+              <span className="text-slate-800">${session.costBreakdown.inputCostUsd.toFixed(6)}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Output cost</span>
+              <span className="text-slate-800">${session.costBreakdown.outputCostUsd.toFixed(6)}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Actual cost (total)</span>
+              <span className="text-slate-800 font-semibold">${session.costBreakdown.totalCostUsd.toFixed(6)}</span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Duration</span>
+              <span className="text-slate-800">
+                {session.costBreakdown.durationMinutes != null
+                  ? `${session.costBreakdown.durationMinutes.toFixed(2)} min`
+                  : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Cost per minute (USD)</span>
+              <span className="text-slate-800 font-semibold">
+                {session.costBreakdown.costPerMinuteUsd != null
+                  ? `$${session.costBreakdown.costPerMinuteUsd.toFixed(6)}/min`
+                  : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Cost per minute (INR)</span>
+              <span className="text-slate-800 font-semibold">
+                {session.costBreakdown.costPerMinuteInr != null
+                  ? `₹${session.costBreakdown.costPerMinuteInr.toFixed(2)}/min`
+                  : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-300 pb-2">
+              <span className="text-slate-600">Total cost (INR)</span>
+              <span className="text-slate-800 font-semibold">
+                {session.costBreakdown.totalCostInr != null
+                  ? `₹${session.costBreakdown.totalCostInr.toFixed(2)}`
+                  : '—'}
+              </span>
+            </div>
+            <div className="col-span-full flex justify-between items-baseline pt-1">
+              <span className="text-slate-500 text-xs">USD → INR rate used</span>
+              <span className="text-slate-500 text-xs">{session.costBreakdown.usdToInr}</span>
             </div>
           </div>
         </div>
@@ -206,8 +319,8 @@ export function CallSessionDetailPage() {
           onClick={() => setTab('timeline')}
           className={`px-3 py-2 rounded-md text-sm font-medium border ${
             tab === 'timeline'
-              ? 'border-slate-600 bg-slate-800 text-slate-50'
-              : 'border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-900'
+              ? 'border-slate-600 bg-slate-200 text-slate-50'
+              : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
           }`}
         >
           Timeline
@@ -217,8 +330,8 @@ export function CallSessionDetailPage() {
           onClick={() => setTab('transcript')}
           className={`px-3 py-2 rounded-md text-sm font-medium border ${
             tab === 'transcript'
-              ? 'border-slate-600 bg-slate-800 text-slate-50'
-              : 'border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-900'
+              ? 'border-slate-600 bg-slate-200 text-slate-50'
+              : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
           }`}
         >
           Transcript
@@ -226,31 +339,31 @@ export function CallSessionDetailPage() {
       </div>
 
       {tab === 'timeline' && (
-      <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm font-semibold">Live timeline</div>
           <div className="text-xs text-slate-500">{timeline.length} events</div>
         </div>
 
         {timeline.length === 0 ? (
-          <div className="text-sm text-slate-400">No events yet.</div>
+          <div className="text-sm text-slate-600">No events yet.</div>
         ) : (
           <ol className="space-y-3">
             {timeline.map((e) => (
               <li key={`${e.source}:${e.id}`} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <div className="w-2 h-2 rounded-full bg-slate-500 mt-2" />
-                  <div className="w-px flex-1 bg-slate-900" />
+                  <div className="w-px flex-1 bg-slate-100" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-200">{e.name}</div>
+                    <div className="text-sm font-semibold text-slate-800">{e.name}</div>
                     <div className="text-xs text-slate-500">
                       {new Date(e.ts).toLocaleTimeString()} · {e.source === 'live' ? 'live' : 'db'}
                     </div>
                   </div>
                   {e.payload !== undefined && (
-                    <pre className="mt-2 text-xs bg-slate-900/60 border border-slate-800 rounded p-2 overflow-auto max-h-40 text-slate-300">
+                    <pre className="mt-2 text-xs bg-slate-100 border border-slate-200 rounded p-2 overflow-auto max-h-40 text-slate-700">
                       {JSON.stringify(e.payload, null, 2)}
                     </pre>
                   )}
@@ -263,7 +376,7 @@ export function CallSessionDetailPage() {
       )}
 
       {tab === 'transcript' && (
-        <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm font-semibold">Call transcript</div>
             <div className="text-xs text-slate-500">
@@ -282,15 +395,15 @@ export function CallSessionDetailPage() {
                   key={m.id}
                   className={`rounded-lg border p-3 ${
                     m.role === 'USER'
-                      ? 'border-slate-800 bg-slate-900/40'
+                      ? 'border-slate-200 bg-slate-50'
                       : 'border-emerald-900/40 bg-emerald-900/10'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-slate-300">{m.role}</div>
+                    <div className="text-xs font-semibold text-slate-700">{m.role}</div>
                     <div className="text-xs text-slate-500">{new Date(m.createdAt).toLocaleTimeString()}</div>
                   </div>
-                  <div className="mt-2 text-sm text-slate-200 whitespace-pre-wrap">{m.text}</div>
+                  <div className="mt-2 text-sm text-slate-800 whitespace-pre-wrap">{m.text}</div>
                   {(m.costUsd != null || m.tokensEstimated != null) && (
                     <div className="mt-2 text-xs text-slate-500">
                       {m.tokensEstimated != null ? `tokens≈${m.tokensEstimated}` : ''}
@@ -308,20 +421,20 @@ export function CallSessionDetailPage() {
                   key={m.id}
                   className={`rounded-lg border p-3 ${
                     m.role === 'USER'
-                      ? 'border-slate-800 bg-slate-900/40'
+                      ? 'border-slate-200 bg-slate-50'
                       : 'border-emerald-900/40 bg-emerald-900/10'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-slate-300">{m.role}</div>
+                    <div className="text-xs font-semibold text-slate-700">{m.role}</div>
                     <div className="text-xs text-slate-500">{new Date(m.ts).toLocaleTimeString()}</div>
                   </div>
-                  <div className="mt-2 text-sm text-slate-200 whitespace-pre-wrap">{m.text}</div>
+                  <div className="mt-2 text-sm text-slate-800 whitespace-pre-wrap">{m.text}</div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-slate-600">
               No transcript yet. Pipeline calls use messages; V2V calls show transcript when the agent sends{' '}
               <code className="text-slate-500">transcript.final</code> (user) and{' '}
               <code className="text-slate-500">agent.speaking</code> / <code className="text-slate-500">agent.finished</code> or{' '}

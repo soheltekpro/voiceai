@@ -64,9 +64,34 @@ export type CallSession = {
   assistantMessageCount?: number;
   transcriptText?: string | null;
   estimatedCostUsd?: string | number | null;
+  /** Cost per minute (USD), computed when duration and cost are present (Pipeline and V2V). */
+  costPerMinuteUsd?: number | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
   agent?: Agent | null;
+  /** Transparent cost breakdown for V2V calls (tokens, rates, USD/INR). */
+  costBreakdown?: V2VCostBreakdown | null;
+};
+
+export type V2VCostBreakdown = {
+  audioInputTokens: number;
+  audioOutputTokens: number;
+  ragTextTokensNote: string;
+  totalTokens: number;
+  inputRatePer1MUsd: number;
+  outputRatePer1MUsd: number;
+  inputPricePerTokenUsd: number;
+  outputPricePerTokenUsd: number;
+  inputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+  durationMinutes: number | null;
+  costPerMinuteUsd: number | null;
+  usdToInr: number;
+  costPerMinuteInr: number | null;
+  totalCostInr: number | null;
+  v2vProvider?: string | null;
+  v2vModel?: string | null;
 };
 
 export type CallEvent = {
@@ -91,6 +116,7 @@ export type CallMessage = {
 export type Call = {
   id: string;
   agentId: string;
+  agentName?: string | null;
   agentType: string;
   status: 'ACTIVE' | 'ENDED' | 'ERROR';
   startedAt: string;
@@ -101,5 +127,8 @@ export type Call = {
   recordingEnabled?: boolean;
   recordingUrl?: string | null;
   recordingDuration?: number | null;
+  callSessionId?: string | null;
+  /** Cost breakdown for V2V calls (from list/detail API). */
+  costBreakdown?: V2VCostBreakdown | null;
 };
 

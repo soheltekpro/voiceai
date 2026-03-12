@@ -32,11 +32,11 @@ export function PdfPreview({ fileUrl, emptyMessage = 'No PDF to preview', classN
     return (
       <div
         className={cn(
-          'flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900/30 text-slate-500',
+          'flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-500',
           className
         )}
       >
-        <FileText className="mb-3 h-14 w-14 text-slate-600" />
+        <FileText className="mb-3 h-14 w-14 text-slate-400" />
         <p className="text-sm">{emptyMessage}</p>
         <p className="mt-1 text-xs text-slate-600">Upload a PDF or select a file to preview</p>
       </div>
@@ -45,23 +45,23 @@ export function PdfPreview({ fileUrl, emptyMessage = 'No PDF to preview', classN
 
   return (
     <div className={cn('flex flex-1 flex-col overflow-hidden', className)}>
-      <div className="flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/30 px-3 py-1.5">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-100/30 px-3 py-1.5">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={zoomOut} disabled={zoom <= MIN_ZOOM} className="h-8 w-8 p-0 text-slate-400">
+          <Button variant="ghost" size="sm" onClick={zoomOut} disabled={zoom <= MIN_ZOOM} className="h-8 w-8 p-0 text-slate-600">
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="min-w-[4rem] text-center text-xs text-slate-400">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="sm" onClick={zoomIn} disabled={zoom >= MAX_ZOOM} className="h-8 w-8 p-0 text-slate-400">
+          <span className="min-w-[4rem] text-center text-xs text-slate-600">{Math.round(zoom * 100)}%</span>
+          <Button variant="ghost" size="sm" onClick={zoomIn} disabled={zoom >= MAX_ZOOM} className="h-8 w-8 p-0 text-slate-600">
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={resetZoom} className="h-8 px-2 text-xs text-slate-400">
+          <Button variant="ghost" size="sm" onClick={resetZoom} className="h-8 px-2 text-xs text-slate-600">
             <RotateCcw className="mr-1 h-3.5 w-3.5" />
             Reset
           </Button>
         </div>
         <p className="text-xs text-slate-500">Scroll to navigate</p>
       </div>
-      <div className="flex-1 overflow-auto bg-slate-800/30 p-4">
+      <div className="flex-1 overflow-auto bg-slate-200/30 p-4">
         <div
           style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
           className="min-h-full w-full"

@@ -63,72 +63,72 @@ export function AgentsPage() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Agents</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             Create and manage voice agents (prompt, voice, language, max duration, interruption).
           </p>
         </div>
         <button
           type="button"
           onClick={load}
-          className="px-3 py-2 rounded-md bg-slate-800 hover:bg-slate-700 text-sm font-medium"
+          className="px-3 py-2 rounded-md bg-slate-200 hover:bg-slate-300 text-sm font-medium"
         >
           Refresh
         </button>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-200 text-sm">
+        <div className="p-3 rounded-lg bg-red-50 border border-red-400/50 text-red-800 text-sm">
           {error}
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div className="text-sm font-semibold mb-3">Create agent</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="md:col-span-1">
-            <label className="text-xs text-slate-400">Name</label>
+            <label className="text-xs text-slate-600">Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-md bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
               placeholder="Support Agent"
             />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs text-slate-400">Description</label>
+            <label className="text-xs text-slate-600">Description</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 w-full rounded-md bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-sm"
               placeholder="Short description (optional)"
             />
           </div>
           <div className="md:col-span-3">
-            <label className="text-xs text-slate-400">Agent type</label>
+            <label className="text-xs text-slate-600">Agent type</label>
             <div className="mt-1 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => setAgentType('PIPELINE')}
                 className={`px-3 py-2 rounded-md text-sm border text-left ${
                   agentType === 'PIPELINE'
-                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100'
-                    : 'border-slate-700 bg-slate-900 text-slate-200'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-100'
+                    : 'border-slate-300 bg-slate-100 text-slate-800'
                 }`}
               >
                 <div className="font-semibold">Voice Pipeline</div>
-                <div className="text-xs text-slate-400">STT → LLM → TTS</div>
+                <div className="text-xs text-slate-600">STT → LLM → TTS</div>
               </button>
               <button
                 type="button"
                 onClick={() => setAgentType('V2V')}
                 className={`px-3 py-2 rounded-md text-sm border text-left ${
                   agentType === 'V2V'
-                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-100'
-                    : 'border-slate-700 bg-slate-900 text-slate-200'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-100'
+                    : 'border-slate-300 bg-slate-100 text-slate-800'
                 }`}
               >
                 <div className="font-semibold">Realtime Voice (V2V)</div>
-                <div className="text-xs text-slate-400">LiveKit voice-to-voice agent</div>
+                <div className="text-xs text-slate-600">LiveKit voice-to-voice agent</div>
               </button>
             </div>
           </div>
@@ -145,10 +145,10 @@ export function AgentsPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800 overflow-hidden">
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-900">
-            <tr className="text-left text-slate-400">
+          <thead className="bg-slate-100">
+            <tr className="text-left text-slate-600">
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Language</th>
@@ -157,28 +157,28 @@ export function AgentsPage() {
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-slate-950">
+          <tbody className="bg-slate-50">
             {data?.items?.length ? (
               data.items.map((a) => (
-                <tr key={a.id} className="border-t border-slate-900">
+                <tr key={a.id} className="border-t border-slate-200">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-100">{a.name}</div>
-                    {a.description && <div className="text-xs text-slate-400">{a.description}</div>}
+                    <div className="font-semibold text-slate-900">{a.name}</div>
+                    {a.description && <div className="text-xs text-slate-600">{a.description}</div>}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-slate-700">
                     {a.agentType === 'V2V' ? 'Realtime V2V' : 'Pipeline'}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-slate-700">
                     {a.agentType === 'V2V' ? '— (realtime)' : a.settings?.language ?? '—'}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{a.settings?.voiceName ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-400">
+                  <td className="px-4 py-3 text-slate-700">{a.settings?.voiceName ?? '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">
                     {new Date(a.updatedAt).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <Link
                       to={`/admin/agents/${a.id}`}
-                      className="px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium"
+                      className="px-3 py-1.5 rounded-md bg-slate-200 hover:bg-slate-300 text-slate-900 font-medium"
                     >
                       Edit
                     </Link>
@@ -194,7 +194,7 @@ export function AgentsPage() {
               ))
             ) : (
               <tr>
-                <td className="px-4 py-6 text-slate-400" colSpan={5}>
+                <td className="px-4 py-6 text-slate-600" colSpan={5}>
                   No agents yet.
                 </td>
               </tr>

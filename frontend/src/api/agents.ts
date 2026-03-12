@@ -24,6 +24,12 @@ export type AgentCreatePayload = {
   maxCallDurationSeconds?: number;
   interruptionBehavior?: 'BARGE_IN_STOP_AGENT' | 'IGNORE_WHILE_SPEAKING';
   knowledgeBaseId?: string | null;
+  /** V2V realtime: provider (e.g. openai, google). */
+  v2vProvider?: string | null;
+  /** V2V realtime: model id. */
+  v2vModel?: string | null;
+  /** V2V realtime: voice id. */
+  v2vVoice?: string | null;
 };
 
 export type AgentUpdatePayload = Partial<AgentCreatePayload>;
@@ -56,6 +62,9 @@ export async function createAgent(payload: AgentCreatePayload): Promise<Agent> {
     maxCallDurationSeconds: payload.maxCallDurationSeconds,
     interruptionBehavior: payload.interruptionBehavior,
     knowledgeBaseId: payload.knowledgeBaseId ?? null,
+    v2vProvider: payload.v2vProvider ?? null,
+    v2vModel: payload.v2vModel ?? null,
+    v2vVoice: payload.v2vVoice ?? null,
   });
 }
 
@@ -80,6 +89,9 @@ export async function replaceAgent(id: string, payload: AgentCreatePayload): Pro
     maxCallDurationSeconds: payload.maxCallDurationSeconds,
     interruptionBehavior: payload.interruptionBehavior,
     knowledgeBaseId: payload.knowledgeBaseId ?? null,
+    v2vProvider: payload.v2vProvider ?? null,
+    v2vModel: payload.v2vModel ?? null,
+    v2vVoice: payload.v2vVoice ?? null,
   });
 }
 

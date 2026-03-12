@@ -67,9 +67,9 @@ export function OperatorCallPage() {
 
   if (!callSessionId) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-center max-w-md">
-          <p className="text-slate-400">Missing call session. Use &quot;Join call&quot; from Live Monitoring.</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center max-w-md">
+          <p className="text-slate-600">Missing call session. Use &quot;Join call&quot; from Live Monitoring.</p>
           <Link to="/admin/live-events" className="mt-4 inline-block text-emerald-400 hover:underline text-sm">
             ← Live Monitoring
           </Link>
@@ -79,14 +79,14 @@ export function OperatorCallPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 w-full max-w-md space-y-4">
-        <h1 className="text-lg font-semibold text-white">Operator — Join call</h1>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-6 w-full max-w-md space-y-4">
+        <h1 className="text-lg font-semibold text-slate-900">Operator — Join call</h1>
         <p className="text-xs text-slate-500 font-mono truncate">{callSessionId}</p>
 
-        {status === 'loading' && <p className="text-slate-400 text-sm">Getting token and connecting…</p>}
+        {status === 'loading' && <p className="text-slate-600 text-sm">Getting token and connecting…</p>}
         {status === 'error' && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
             {error}
             <button
               type="button"
@@ -105,7 +105,7 @@ export function OperatorCallPage() {
                 type="button"
                 onClick={toggleMic}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
-                  micEnabled ? 'bg-slate-700 text-slate-200' : 'bg-amber-600 text-white'
+                  micEnabled ? 'bg-slate-700 text-slate-800' : 'bg-amber-600 text-slate-900'
                 }`}
               >
                 {micEnabled ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -114,7 +114,7 @@ export function OperatorCallPage() {
               <button
                 type="button"
                 onClick={disconnect}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600/80 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600/80 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-red-600"
               >
                 <PhoneOff className="h-4 w-4" />
                 Leave
@@ -123,7 +123,7 @@ export function OperatorCallPage() {
           </div>
         )}
 
-        <Link to="/admin/live-events" className="inline-block text-sm text-slate-400 hover:text-slate-200">
+        <Link to="/admin/live-events" className="inline-block text-sm text-slate-600 hover:text-slate-800">
           ← Live Monitoring
         </Link>
       </div>

@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../db/prisma.js';
 import { getWorkspaceId } from '../auth-context.js';
 import { PaginationSchema } from '../schemas.js';
+import { costPerMinuteUsd } from '../../usage/voice-cost.js';
+import { buildV2VCostBreakdown } from '../../usage/v2v-cost.js';
 import { z } from 'zod';
 
 export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
@@ -33,16 +35,44 @@ export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
       ];
     }
 
-    const [items, total] = await Promise.all([
+    const [sessions, total] = await Promise.all([
       prisma.callSession.findMany({
         where,
         orderBy: { startedAt: 'desc' },
         skip: offset,
         take: limit,
-        include: { agent: true },
+        include: { agent: { include: { settings: true } } },
       }),
       prisma.callSession.count({ where }),
     ]);
+    const items = sessions.map((s) => {
+      const costPerMinuteUsdVal = costPerMinuteUsd(
+        s.estimatedCostUsd != null ? Number(s.estimatedCostUsd) : null,
+        s.durationSeconds,
+      );
+      let costBreakdown: ReturnType<typeof buildV2VCostBreakdown> | null = null;
+      const agentType = s.agent?.agentType ?? 'PIPELINE';
+      const hasTokens =
+        (s.inputTokens != null && s.inputTokens > 0) ||
+        (s.outputTokens != null && s.outputTokens > 0);
+      const costUsd = s.estimatedCostUsd != null ? Number(s.estimatedCostUsd) : 0;
+      if (agentType === 'V2V' && hasTokens && costUsd >= 0) {
+        const settings = s.agent?.settings;
+        costBreakdown = buildV2VCostBreakdown({
+          inputTokens: s.inputTokens ?? 0,
+          outputTokens: s.outputTokens ?? 0,
+          totalCostUsd: costUsd,
+          durationSeconds: s.durationSeconds ?? null,
+          v2vProvider: settings?.v2vProvider ?? null,
+          v2vModel: settings?.v2vModel ?? null,
+        });
+      }
+      return {
+        ...s,
+        costPerMinuteUsd: costPerMinuteUsdVal,
+        costBreakdown,
+      };
+    });
     return { items, total, limit, offset };
   });
 
@@ -51,10 +81,35 @@ export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
     const id = (req.params as any).id as string;
     const session = await prisma.callSession.findFirst({
       where: { id, agent: { workspaceId } },
-      include: { agent: true },
+      include: { agent: { include: { settings: true } } },
     });
     if (!session) return reply.code(404).send({ message: 'Call session not found' });
-    return session;
+    const costPerMinuteUsdVal = costPerMinuteUsd(
+      session.estimatedCostUsd != null ? Number(session.estimatedCostUsd) : null,
+      session.durationSeconds,
+    );
+    let costBreakdown: ReturnType<typeof buildV2VCostBreakdown> | null = null;
+    const agentType = session.agent?.agentType ?? 'PIPELINE';
+    const hasTokens =
+      (session.inputTokens != null && session.inputTokens > 0) ||
+      (session.outputTokens != null && session.outputTokens > 0);
+    const costUsd = session.estimatedCostUsd != null ? Number(session.estimatedCostUsd) : 0;
+    if (agentType === 'V2V' && hasTokens && costUsd >= 0) {
+      const settings = session.agent?.settings;
+      costBreakdown = buildV2VCostBreakdown({
+        inputTokens: session.inputTokens ?? 0,
+        outputTokens: session.outputTokens ?? 0,
+        totalCostUsd: costUsd,
+        durationSeconds: session.durationSeconds ?? null,
+        v2vProvider: settings?.v2vProvider ?? null,
+        v2vModel: settings?.v2vModel ?? null,
+      });
+    }
+    return {
+      ...session,
+      costPerMinuteUsd: costPerMinuteUsdVal,
+      costBreakdown,
+    };
   });
 
   app.get('/call-sessions/:id/events', async (req, reply) => {
@@ -206,6 +261,7 @@ export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
         status: true,
         inputTokens: true,
         outputTokens: true,
+        agent: { select: { agentType: true } },
       },
     });
 
@@ -219,6 +275,13 @@ export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
         if (s.status === 'ENDED') acc.ended += 1;
         if (s.status === 'ACTIVE') acc.active += 1;
         if (s.status === 'ERROR') acc.error += 1;
+        const agentType = s.agent?.agentType ?? 'PIPELINE';
+        if (!acc.byAgentType[agentType]) {
+          acc.byAgentType[agentType] = { totalCostUsd: 0, totalDurationSeconds: 0, calls: 0 };
+        }
+        acc.byAgentType[agentType].totalCostUsd += Number(s.estimatedCostUsd ?? 0);
+        acc.byAgentType[agentType].totalDurationSeconds += s.durationSeconds ?? 0;
+        acc.byAgentType[agentType].calls += 1;
         return acc;
       },
       {
@@ -230,10 +293,33 @@ export async function registerCallRoutes(app: FastifyInstance): Promise<void> {
         totalEstimatedCostUsd: 0,
         totalInputTokens: 0,
         totalOutputTokens: 0,
+        byAgentType: {} as Record<string, { totalCostUsd: number; totalDurationSeconds: number; calls: number }>,
       }
     );
 
-    return totals;
+    const totalMinutes = totals.totalDurationSeconds / 60;
+    const averageCostPerMinuteUsd =
+      totalMinutes > 0 && totals.totalEstimatedCostUsd > 0
+        ? Math.round((totals.totalEstimatedCostUsd / totalMinutes) * 1e6) / 1e6
+        : null;
+
+    const costPerMinuteByAgentType: Record<string, { costPerMinuteUsd: number; totalCostUsd: number; totalMinutes: number; calls: number }> = {};
+    for (const [type, agg] of Object.entries(totals.byAgentType)) {
+      const minutes = agg.totalDurationSeconds / 60;
+      costPerMinuteByAgentType[type] = {
+        totalCostUsd: Math.round(agg.totalCostUsd * 1e6) / 1e6,
+        totalMinutes: Math.round(minutes * 1e2) / 1e2,
+        calls: agg.calls,
+        costPerMinuteUsd: minutes > 0 && agg.totalCostUsd > 0 ? Math.round((agg.totalCostUsd / minutes) * 1e6) / 1e6 : 0,
+      };
+    }
+
+    const { byAgentType: _by, ...restTotals } = totals;
+    return {
+      ...restTotals,
+      averageCostPerMinuteUsd,
+      costPerMinuteByAgentType,
+    };
   });
 }
 

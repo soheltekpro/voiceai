@@ -10,6 +10,7 @@ import { checkCanStartCall, recordCallUsage } from '../../services/usage.js';
 import { getCallQueue, getCallQueueEvents } from '../../infra/queues.js';
 import type { CallEventName } from '../../events/types.js';
 import { resolveVoiceRegionWithFailover } from '../../voice/region-resolver.js';
+import { estimateGeminiNativeAudioCost } from '../../usage/v2v-cost.js';
 
 /**
  * Call start result (keeps compatibility with existing frontend VoiceAgentPhase1).
@@ -146,7 +147,12 @@ export async function registerCallOrchestratorRoutes(app: FastifyInstance): Prom
     }
     const session = await prisma.callSession.findFirst({
       where: { id: callSessionId, agent: { workspaceId } },
-      select: { id: true, status: true, startedAt: true },
+      select: {
+        id: true,
+        status: true,
+        startedAt: true,
+        agent: { select: { agentType: true, settings: { select: { v2vProvider: true, v2vModel: true } } } },
+      },
     });
     if (!session) {
       return reply.code(404).send({ message: 'Call session not found' });
@@ -161,7 +167,23 @@ export async function registerCallOrchestratorRoutes(app: FastifyInstance): Prom
         if (usage.data.inputTokens != null) data.inputTokens = usage.data.inputTokens;
         if (usage.data.outputTokens != null) data.outputTokens = usage.data.outputTokens;
         if (usage.data.durationSeconds != null) data.durationSeconds = usage.data.durationSeconds;
-        if (usage.data.estimatedCostUsd != null) data.estimatedCostUsd = usage.data.estimatedCostUsd;
+        if (usage.data.estimatedCostUsd != null) {
+          data.estimatedCostUsd = usage.data.estimatedCostUsd;
+        } else {
+          // If agent didn't compute cost, estimate it here for V2V Gemini native audio.
+          const agentType = session.agent?.agentType ?? 'PIPELINE';
+          const provider = (session.agent?.settings?.v2vProvider ?? '').toLowerCase();
+          const model = (session.agent?.settings?.v2vModel ?? '').toLowerCase();
+          const isGemini = provider === 'google' || provider === 'gemini';
+          const isNativeAudio = model.includes('native-audio') || model.includes('live');
+          if (agentType === 'V2V' && isGemini && isNativeAudio) {
+            const inTok = usage.data.inputTokens ?? 0;
+            const outTok = usage.data.outputTokens ?? 0;
+            if (inTok > 0 || outTok > 0) {
+              data.estimatedCostUsd = estimateGeminiNativeAudioCost(inTok, outTok);
+            }
+          }
+        }
         if (Object.keys(data).length > 0) {
           await prisma.callSession.update({
             where: { id: callSessionId },

@@ -20,8 +20,8 @@ function MetricRow({
 }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-slate-400">{label}</span>
-      <span className="text-white">
+      <span className="text-slate-600">{label}</span>
+      <span className="text-slate-900">
         {used.toLocaleString()} {unit}
       </span>
     </div>
@@ -92,8 +92,8 @@ export function BillingPage() {
   if (loading && !data) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-white">Billing</h1>
-        <p className="text-slate-400">Loading…</p>
+        <h1 className="text-2xl font-bold text-slate-900">Billing</h1>
+        <p className="text-slate-600">Loading…</p>
       </div>
     );
   }
@@ -117,8 +117,8 @@ export function BillingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Billing</h1>
-        <p className="mt-1 text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">Billing</h1>
+        <p className="mt-1 text-slate-600">
           Manage your plan, view usage, and upgrade or downgrade.
           {data?.period && (
             <span className="block mt-1 text-slate-500">
@@ -128,22 +128,22 @@ export function BillingPage() {
         </p>
       </div>
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-slate-400" />
-              <CardTitle className="text-white">Current plan</CardTitle>
+              <CreditCard className="h-5 w-5 text-slate-600" />
+              <CardTitle className="text-slate-900">Current plan</CardTitle>
             </div>
             <CardDescription>
               {plan ? (
                 <>
-                  <span className="font-medium text-white">{plan.name}</span>
-                  <span className="text-slate-400"> — {plan.status}</span>
+                  <span className="font-medium text-slate-900">{plan.name}</span>
+                  <span className="text-slate-600"> — {plan.status}</span>
                   {cancelAtPeriodEnd && (
                     <span className="block mt-1 text-amber-400">Canceling at period end</span>
                   )}
@@ -159,7 +159,7 @@ export function BillingPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-slate-600 text-slate-200"
+                  className="border-slate-600 text-slate-800"
                   onClick={() => handleCancel(false)}
                   disabled={!!actionLoading}
                 >
@@ -179,11 +179,11 @@ export function BillingPage() {
             )}
           </CardContent>
         </Card>
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-slate-400" />
-              <CardTitle className="text-white">Next invoice</CardTitle>
+              <Receipt className="h-5 w-5 text-slate-600" />
+              <CardTitle className="text-slate-900">Next invoice</CardTitle>
             </div>
             <CardDescription>Estimated amount for the current period</CardDescription>
           </CardHeader>
@@ -191,25 +191,25 @@ export function BillingPage() {
             {nextInvoice ? (
               <div className="space-y-1 text-sm">
                 {nextInvoice.amountDue != null && (
-                  <p className="text-white font-medium">
+                  <p className="text-slate-900 font-medium">
                     {nextInvoice.currency?.toUpperCase() ?? 'USD'} {(nextInvoice.amountDue ?? 0).toFixed(2)}
                   </p>
                 )}
                 {nextInvoice.periodEnd && (
-                  <p className="text-slate-400">Period end: {new Date(nextInvoice.periodEnd).toLocaleDateString()}</p>
+                  <p className="text-slate-600">Period end: {new Date(nextInvoice.periodEnd).toLocaleDateString()}</p>
                 )}
               </div>
             ) : (
-              <p className="text-slate-400 text-sm">No upcoming invoice</p>
+              <p className="text-slate-600 text-sm">No upcoming invoice</p>
             )}
           </CardContent>
         </Card>
       </div>
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-slate-400" />
-            <CardTitle className="text-white">Usage this period</CardTitle>
+            <TrendingUp className="h-5 w-5 text-slate-600" />
+            <CardTitle className="text-slate-900">Usage this period</CardTitle>
           </div>
           <CardDescription>Voice and API usage for billing</CardDescription>
         </CardHeader>
@@ -222,9 +222,9 @@ export function BillingPage() {
           <MetricRow label="Tool calls" used={usage.tool_calls} unit="" />
         </CardContent>
       </Card>
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Upgrade or downgrade</CardTitle>
+          <CardTitle className="text-slate-900">Upgrade or downgrade</CardTitle>
           <CardDescription>Choose a plan. Subscribing creates a Stripe subscription; usage is reported at period end.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -234,11 +234,11 @@ export function BillingPage() {
               return (
                 <div
                   key={p.id}
-                  className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 flex flex-col gap-2"
+                  className="rounded-lg border border-slate-300 bg-slate-200/50 p-4 flex flex-col gap-2"
                 >
                   <div>
-                    <p className="font-medium text-white">{p.name}</p>
-                    <p className="text-sm text-slate-400">{p.description}</p>
+                    <p className="font-medium text-slate-900">{p.name}</p>
+                    <p className="text-sm text-slate-600">{p.description}</p>
                   </div>
                   <Button
                     size="sm"

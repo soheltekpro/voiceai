@@ -6,12 +6,18 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 100%);
   min-height: 100vh;
-  color: #e2e8f0;
+  color: #0f172a;
+  overflow-x: hidden;
 }
 
 #root {
@@ -34,7 +40,7 @@ body {
   font-size: 1.5rem;
   font-weight: 600;
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 .secure-context-banner {
@@ -76,13 +82,14 @@ body {
 }
 
 .agent-card {
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(71, 85, 105, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(203, 213, 225, 0.8);
   border-radius: 1rem;
   padding: 2rem;
   max-width: 420px;
   width: 100%;
   text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .agent-card h2 {
@@ -94,7 +101,7 @@ body {
 .agent-card .state {
   margin: 0 0 1.5rem;
   font-size: 0.875rem;
-  color: #94a3b8;
+  color: #475569;
 }
 
 .agent-card .hint {
@@ -120,7 +127,7 @@ body {
 }
 
 .agent-card .error-box strong {
-  color: #fca5a5;
+  color: #b91c1c;
 }
 
 .agent-card .retry-btn {
@@ -128,15 +135,15 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #0f172a;
-  background: #e2e8f0;
+  color: #fff;
+  background: #334155;
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
 }
 
 .agent-card .retry-btn:hover {
-  background: #cbd5e1;
+  background: #475569;
 }
 
 .agent-card .usage-box {
@@ -150,10 +157,10 @@ body {
 }
 
 .agent-card .usage-box strong {
-  color: #86efac;
+  color: #15803d;
 }
 
 .agent-card .usage-box p {
   margin: 0.25rem 0 0;
-  color: #bbf7d0;
+  color: #166534;
 }

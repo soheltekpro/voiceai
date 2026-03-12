@@ -184,20 +184,20 @@ export function KnowledgeBasesPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-col">
-      <div className="shrink-0 px-6 py-4">
-        <h1 className="text-2xl font-bold text-white">Knowledge Bases</h1>
-        <p className="mt-1 text-sm text-slate-400">
+      <div className="shrink-0 px-0 py-4 sm:px-4 md:px-6">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Knowledge Bases</h1>
+        <p className="mt-1 text-xs text-slate-600 sm:text-sm">
           Add context for your agents via PDF, text, or URL. Link a KB to an agent for RAG.
         </p>
       </div>
 
       {error && (
-        <div className="mx-6 mb-2 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-200">
+        <div className="mb-2 rounded-lg border border-red-400/50 bg-red-50 px-4 py-3 text-sm text-red-800 sm:mx-0">
           {error}
         </div>
       )}
 
-      <div className="flex min-h-[480px] min-w-0 flex-1">
+      <div className="flex min-h-[400px] min-w-0 flex-1 flex-col lg:flex-row">
         <KnowledgeBaseSidebar
           knowledgeBases={knowledgeBases}
           selectedKbId={selectedKbId}

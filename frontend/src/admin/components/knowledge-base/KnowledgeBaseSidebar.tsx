@@ -54,15 +54,15 @@ export function KnowledgeBaseSidebar({
     : knowledgeBases;
 
   return (
-    <aside className="flex w-[320px] shrink-0 flex-col border-r border-slate-800 bg-slate-950/80">
-      <div className="border-b border-slate-800 p-3">
+    <aside className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-white lg:w-[320px] lg:border-b-0 lg:border-r">
+      <div className="border-b border-slate-200 p-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
           <Input
             placeholder="Search knowledge bases..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+            className="pl-9 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 focus-visible:ring-emerald-500/50"
           />
         </div>
         <div className="mt-3 flex gap-2">
@@ -70,9 +70,9 @@ export function KnowledgeBaseSidebar({
             placeholder="New KB name"
             value={newKbName}
             onChange={(e) => onNewKbNameChange(e.target.value)}
-            className="flex-1 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 text-sm"
+            className="flex-1 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-500 text-sm focus-visible:ring-emerald-500/50"
           />
-          <Button size="sm" onClick={onCreateKb} disabled={creating || !newKbName.trim()}>
+          <Button size="sm" onClick={onCreateKb} disabled={creating || !newKbName.trim()} className="bg-emerald-600 hover:bg-emerald-500 text-white">
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -95,8 +95,8 @@ export function KnowledgeBaseSidebar({
                     className={cn(
                       'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
                       selectedKbId === kb.id
-                        ? 'bg-emerald-500/15 text-emerald-200'
-                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                        ? 'bg-emerald-100 text-emerald-900'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     )}
                   >
                     <button
@@ -123,7 +123,7 @@ export function KnowledgeBaseSidebar({
                           }
                         }}
                         disabled={deletingKbId === kb.id}
-                        className="shrink-0 rounded p-1.5 text-slate-500 hover:bg-slate-700/80 hover:text-red-400 disabled:opacity-50"
+                        className="shrink-0 rounded p-1.5 text-slate-500 hover:bg-slate-300/80 hover:text-red-400 disabled:opacity-50"
                         title="Delete knowledge base"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -137,7 +137,7 @@ export function KnowledgeBaseSidebar({
         </div>
 
         {selectedKbId && (
-          <div className="border-t border-slate-800 p-2">
+          <div className="border-t border-slate-200 p-2">
             <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-slate-500">
               Documents
             </p>
@@ -155,8 +155,8 @@ export function KnowledgeBaseSidebar({
                       className={cn(
                         'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
                         selectedDocumentId === doc.id
-                          ? 'bg-slate-700/80 text-white'
-                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                          ? 'bg-emerald-50 text-emerald-900 border border-emerald-200/60'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                       )}
                     >
                       <FileText className="h-4 w-4 shrink-0 text-slate-500" />

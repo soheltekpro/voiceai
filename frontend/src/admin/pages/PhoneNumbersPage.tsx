@@ -69,14 +69,14 @@ export function PhoneNumbersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Phone Numbers</h1>
-        <p className="mt-1 text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">Phone Numbers</h1>
+        <p className="mt-1 text-slate-600">
           Assign phone numbers to SIP trunks and optionally to an agent for inbound call routing.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/15 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-50 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
@@ -84,13 +84,13 @@ export function PhoneNumbersPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-white">Add phone number</CardTitle>
+            <CardTitle className="text-slate-900">Add phone number</CardTitle>
             <CardDescription>Inbound calls to this number will route to the assigned agent.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <Label className="text-slate-300">Number (E.164 or provider format)</Label>
+                <Label className="text-slate-700">Number (E.164 or provider format)</Label>
                 <Input
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
@@ -99,7 +99,7 @@ export function PhoneNumbersPage() {
                 />
               </div>
               <div>
-                <Label className="text-slate-300">Provider</Label>
+                <Label className="text-slate-700">Provider</Label>
                 <Input
                   value={provider}
                   onChange={(e) => setProvider(e.target.value)}
@@ -108,11 +108,11 @@ export function PhoneNumbersPage() {
                 />
               </div>
               <div>
-                <Label className="text-slate-300">SIP trunk</Label>
+                <Label className="text-slate-700">SIP trunk</Label>
                 <select
                   value={sipTrunkId}
                   onChange={(e) => setSipTrunkId(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-slate-200"
+                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-200 px-3 py-2 text-slate-800"
                 >
                   <option value="">Select trunk</option>
                   {trunks.map((t) => (
@@ -123,11 +123,11 @@ export function PhoneNumbersPage() {
                 </select>
               </div>
               <div>
-                <Label className="text-slate-300">Agent (inbound)</Label>
+                <Label className="text-slate-700">Agent (inbound)</Label>
                 <select
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-slate-200"
+                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-200 px-3 py-2 text-slate-800"
                 >
                   <option value="">No agent</option>
                   {agents.map((a) => (
@@ -146,7 +146,7 @@ export function PhoneNumbersPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-white">Numbers ({total})</CardTitle>
+            <CardTitle className="text-slate-900">Numbers ({total})</CardTitle>
             <CardDescription>Numbers with an agent receive inbound calls routed to that agent.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -157,14 +157,14 @@ export function PhoneNumbersPage() {
                 {items.map((p) => (
                   <li
                     key={p.id}
-                    className="rounded-lg border border-slate-700 bg-slate-800/50 p-4"
+                    className="rounded-lg border border-slate-300 bg-slate-200/50 p-4"
                   >
-                    <div className="font-medium text-slate-200">{p.number}</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-400">
+                    <div className="font-medium text-slate-800">{p.number}</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-600">
                       <span>{p.provider}</span>
                       {p.sipTrunk && <span>· {p.sipTrunk.name}</span>}
                     </div>
-                    <div className="mt-1 text-sm text-slate-300">
+                    <div className="mt-1 text-sm text-slate-700">
                       Agent: {p.agent?.name ?? '—'}
                     </div>
                     <div className="mt-1 text-xs text-slate-500">

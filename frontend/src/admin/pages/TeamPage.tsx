@@ -26,31 +26,31 @@ export function TeamPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Team</h1>
-        <p className="mt-1 text-slate-400">Users in your workspace.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Team</h1>
+        <p className="mt-1 text-slate-600">Users in your workspace.</p>
       </div>
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Members</CardTitle>
+          <CardTitle className="text-slate-900">Members</CardTitle>
           <CardDescription>Users with access to this workspace.</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <p className="text-slate-400 text-sm">No members listed.</p>
+            <p className="text-slate-600 text-sm">No members listed.</p>
           ) : (
             <ul className="space-y-3">
               {items.map((m) => (
                 <li
                   key={m.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 p-4"
+                  className="flex items-center justify-between rounded-lg border border-slate-300 bg-slate-200/50 p-4"
                 >
                   <div>
-                    <p className="font-medium text-slate-200">{m.email}</p>
+                    <p className="font-medium text-slate-800">{m.email}</p>
                     <p className="text-xs text-slate-500">{m.role} · {new Date(m.createdAt).toLocaleDateString()}</p>
                   </div>
                 </li>

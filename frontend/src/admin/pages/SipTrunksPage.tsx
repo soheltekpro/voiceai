@@ -59,15 +59,15 @@ export function SipTrunksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">SIP Trunks</h1>
-        <p className="mt-1 text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">SIP Trunks</h1>
+        <p className="mt-1 text-slate-600">
           Configure SIP trunks (Twilio, Plivo, Telnyx). Use the trunk name as the PJSIP endpoint in Asterisk.
           Then add numbers in Phone Numbers and place test calls from Outbound Calls.
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/15 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-50 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
@@ -75,7 +75,7 @@ export function SipTrunksPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-white">Add SIP trunk</CardTitle>
+            <CardTitle className="text-slate-900">Add SIP trunk</CardTitle>
             <CardDescription>
               Provider-specific config (e.g. credentials) goes in config JSON. Trunk name must match the PJSIP endpoint name in Asterisk (e.g. twilio-trunk).
             </CardDescription>
@@ -83,11 +83,11 @@ export function SipTrunksPage() {
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <Label className="text-slate-300">Provider</Label>
+                <Label className="text-slate-700">Provider</Label>
                 <select
                   value={provider}
                   onChange={(e) => setProvider(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-slate-200"
+                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-200 px-3 py-2 text-slate-800"
                 >
                   {PROVIDERS.map((p) => (
                     <option key={p} value={p}>
@@ -97,7 +97,7 @@ export function SipTrunksPage() {
                 </select>
               </div>
               <div>
-                <Label className="text-slate-300">Name (PJSIP endpoint)</Label>
+                <Label className="text-slate-700">Name (PJSIP endpoint)</Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -106,12 +106,12 @@ export function SipTrunksPage() {
                 />
               </div>
               <div>
-                <Label className="text-slate-300">Config (JSON)</Label>
+                <Label className="text-slate-700">Config (JSON)</Label>
                 <textarea
                   value={configJson}
                   onChange={(e) => setConfigJson(e.target.value)}
                   rows={4}
-                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-800 p-3 font-mono text-sm text-slate-200"
+                  className="mt-1 w-full rounded-md border border-slate-600 bg-slate-200 p-3 font-mono text-sm text-slate-800"
                   placeholder='{"authToken": "..."}'
                 />
               </div>
@@ -124,7 +124,7 @@ export function SipTrunksPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-white">Trunks ({total})</CardTitle>
+            <CardTitle className="text-slate-900">Trunks ({total})</CardTitle>
             <CardDescription>Trunks are used for outbound calls and to associate phone numbers.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -135,10 +135,10 @@ export function SipTrunksPage() {
                 {items.map((t) => (
                   <li
                     key={t.id}
-                    className="rounded-lg border border-slate-700 bg-slate-800/50 p-4"
+                    className="rounded-lg border border-slate-300 bg-slate-200/50 p-4"
                   >
-                    <div className="font-medium text-slate-200">{t.name}</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-400">
+                    <div className="font-medium text-slate-800">{t.name}</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-slate-600">
                       <span>{t.provider}</span>
                       {t._count != null && (
                         <span>· {t._count.phoneNumbers} number(s)</span>

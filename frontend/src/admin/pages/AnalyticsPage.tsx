@@ -44,8 +44,8 @@ export function AnalyticsPage() {
   if (loading && !data) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-slate-400">Loading…</p>
+        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
+        <p className="text-slate-600">Loading…</p>
       </div>
     );
   }
@@ -63,8 +63,8 @@ export function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Analytics</h1>
-          <p className="mt-1 text-slate-400">Call and usage metrics for your workspace</p>
+          <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
+          <p className="mt-1 text-slate-600">Call and usage metrics for your workspace</p>
         </div>
         <div className="flex gap-2">
           {DAYS_OPTIONS.map((d) => (
@@ -74,7 +74,7 @@ export function AnalyticsPage() {
               className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
                 days === d
                   ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
-                  : 'border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
+                  : 'border-slate-300 bg-slate-200/50 text-slate-700 hover:bg-slate-300/50'
               }`}
             >
               {d} days
@@ -84,43 +84,43 @@ export function AnalyticsPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
 
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Total calls</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Total calls</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">{data?.totalCalls ?? 0}</p>
+            <p className="text-2xl font-bold text-slate-900">{data?.totalCalls ?? 0}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Successful</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Successful</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-emerald-400">{data?.successfulCalls ?? 0}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Failed</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Failed</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-400">{data?.failedCalls ?? 0}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Avg call duration</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-600">Avg call duration</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-white">
+            <p className="text-2xl font-bold text-slate-900">
               {data ? `${Math.round(data.averageCallDuration)}s` : '—'}
             </p>
           </CardContent>
@@ -128,9 +128,9 @@ export function AnalyticsPage() {
       </div>
 
       {/* Calls per day */}
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Calls per day</CardTitle>
+          <CardTitle className="text-slate-900">Calls per day</CardTitle>
           <CardDescription>Daily call volume over the selected period</CardDescription>
         </CardHeader>
         <CardContent>
@@ -155,9 +155,9 @@ export function AnalyticsPage() {
 
       {/* Average call duration (by day) + Token usage trend */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
-            <CardTitle className="text-white">Average call duration by day</CardTitle>
+            <CardTitle className="text-slate-900">Average call duration by day</CardTitle>
             <CardDescription>Mean duration (seconds) of ended calls per day</CardDescription>
           </CardHeader>
           <CardContent>
@@ -187,9 +187,9 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
-            <CardTitle className="text-white">Token usage trend</CardTitle>
+            <CardTitle className="text-slate-900">Token usage trend</CardTitle>
             <CardDescription>LLM tokens used per day</CardDescription>
           </CardHeader>
           <CardContent>
@@ -221,9 +221,9 @@ export function AnalyticsPage() {
       </div>
 
       {/* Tool usage frequency */}
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Tool usage frequency</CardTitle>
+          <CardTitle className="text-slate-900">Tool usage frequency</CardTitle>
           <CardDescription>Number of tool invocations per tool in the selected period</CardDescription>
         </CardHeader>
         <CardContent>

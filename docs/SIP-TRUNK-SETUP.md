@@ -2,6 +2,8 @@
 
 This guide walks you through setting up a SIP trunk, attaching a real phone number, and placing an outbound test call.
 
+**Can’t sign up for Twilio or Plivo?** You can test the full inbound voice AI pipeline with **no provider** using a SIP softphone and Asterisk. See **[Testing without Twilio/Plivo](SIP-TESTING-WITHOUT-PROVIDER.md)**.
+
 ---
 
 ## Overview
@@ -31,16 +33,26 @@ The dashboard stores trunk **name** and **config (JSON)** for your reference; As
 2. Buy or use an existing number.
 3. In Plivo console, get your SIP endpoint (e.g. `sip.plivo.com` or your subdomain) and auth (username/password) for SIP registration.
 
-### Telnyx
+### Telnyx (free trial)
 
-1. Sign up at [telnyx.com](https://www.telnyx.com).
-2. Get a number and create a SIP Connection; note credentials and outbound SIP URI.
+1. Sign up at [telnyx.com](https://www.telnyx.com) and use your free trial credit.
+2. **Numbers** → buy or use a trial number.
+3. **Voice → SIP Trunking → Create SIP Connection**:
+   - **Name:** Any label (e.g. `voiceai-asterisk`).
+   - **Type:** Choose **Credentials** (username/password) so Asterisk can authenticate. Click **Create**.
+4. Complete the wizard:
+   - **Authentication and routing:** Note the **SIP username** and **SIP password** Telnyx shows (you’ll put these in Asterisk).
+   - **Configuration / Outbound:** Note the **SIP URI** or host (e.g. `sip.telnyx.com` or your connection’s FQDN).
+   - **Inbound:** Set your Asterisk server’s public IP or hostname and port (5060) so Telnyx can send inbound calls to Asterisk.
+5. **Numbers** → assign your number to this SIP connection for inbound/outbound.
 
-Use your provider’s docs for exact SIP endpoint, username, and password.
+You’ll need: **SIP host (domain)**, **username**, **password**, and (for inbound) your **Asterisk public IP:5060**.
 
 ---
 
 ## Step 2: Configure Asterisk (PJSIP)
+
+**New to Asterisk?** For a full step-by-step (where to edit, what to type, how to reload), see **[Asterisk Telnyx step-by-step](ASTERISK-TELNYX-STEP-BY-STEP.md)**.
 
 Asterisk must have a PJSIP endpoint whose **name matches** the trunk name you will create in the dashboard.
 
@@ -91,7 +103,32 @@ Asterisk must have a PJSIP endpoint whose **name matches** the trunk name you wi
    asterisk -rx "pjsip reload"
    ```
 
-Use the **same** `[twilio-trunk]` name (or `plivo-trunk` / `telnyx-trunk`) in the dashboard in the next step.
+**For Telnyx** use the same pattern with name `telnyx-trunk` and your connection’s credentials:
+
+```ini
+[telnyx-trunk]
+type=endpoint
+transport=transport-udp
+context=from-sip-trunk
+disallow=all
+allow=ulaw
+outbound_auth=telnyx-auth
+aors=telnyx-aor
+
+[telnyx-auth]
+type=auth
+auth_type=userpass
+username=YOUR_TELNYX_SIP_USERNAME
+password=YOUR_TELNYX_SIP_PASSWORD
+
+[telnyx-aor]
+type=aor
+contact=sip:YOUR_TELNYX_SIP_HOST
+```
+
+Replace `YOUR_TELNYX_SIP_USERNAME`, `YOUR_TELNYX_SIP_PASSWORD`, and `YOUR_TELNYX_SIP_HOST` (e.g. `sip.telnyx.com` or the host Telnyx shows in the connection).
+
+Use the **same** trunk name (`twilio-trunk`, `plivo-trunk`, or `telnyx-trunk`) in the dashboard in the next step.
 
 ---
 

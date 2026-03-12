@@ -63,23 +63,23 @@ export function ApiKeysPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">API Keys</h1>
-        <p className="mt-1 text-slate-400">Create keys for programmatic access. Use as Bearer token.</p>
+        <h1 className="text-2xl font-bold text-slate-900">API Keys</h1>
+        <p className="mt-1 text-slate-600">Create keys for programmatic access. Use as Bearer token.</p>
       </div>
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
       {newKey && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+        <div className="rounded-lg border border-emerald-400/50 bg-emerald-50 p-4 text-sm text-emerald-800">
           <p className="font-medium">Key created. Copy it now — it won’t be shown again:</p>
-          <code className="mt-2 block break-all rounded bg-slate-900/60 p-2 text-xs">{newKey}</code>
+          <code className="mt-2 block break-all rounded bg-slate-100 p-2 text-xs">{newKey}</code>
         </div>
       )}
-      <Card className="max-w-lg border-slate-800 bg-slate-900/40">
+      <Card className="max-w-lg border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Create API key</CardTitle>
+          <CardTitle className="text-slate-900">Create API key</CardTitle>
           <CardDescription>Give the key a name (e.g. production, CLI).</CardDescription>
         </CardHeader>
         <CardContent>
@@ -90,7 +90,7 @@ export function ApiKeysPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Key name"
-                className="bg-slate-800 border-slate-700"
+                className="bg-slate-200 border-slate-300"
               />
             </div>
             <Button type="submit" disabled={creating}>
@@ -99,22 +99,22 @@ export function ApiKeysPage() {
           </form>
         </CardContent>
       </Card>
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Keys</CardTitle>
+          <CardTitle className="text-slate-900">Keys</CardTitle>
           <CardDescription>Revoke a key to invalidate it immediately.</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <p className="text-slate-400 text-sm">No API keys yet.</p>
+            <p className="text-slate-600 text-sm">No API keys yet.</p>
           ) : (
             <ul className="space-y-2">
               {items.map((k) => (
                 <li
                   key={k.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-3"
+                  className="flex items-center justify-between rounded-lg border border-slate-300 bg-slate-200/50 px-4 py-3"
                 >
-                  <span className="font-medium text-slate-200">{k.name}</span>
+                  <span className="font-medium text-slate-800">{k.name}</span>
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     {new Date(k.createdAt).toLocaleString()}
                     <Button

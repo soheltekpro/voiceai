@@ -14,12 +14,12 @@ const METRIC_LABELS: Record<keyof UsageMetrics, string> = {
 
 function MetricCard({ label, value, unit }: { label: string; value: number; unit: string }) {
   return (
-    <Card className="border-slate-800 bg-slate-900/40">
+    <Card className="border-slate-200 bg-slate-50">
       <CardHeader className="pb-2">
-        <CardDescription className="text-slate-400">{label}</CardDescription>
+        <CardDescription className="text-slate-600">{label}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold text-white">
+        <p className="text-2xl font-semibold text-slate-900">
           {value.toLocaleString()} {unit}
         </p>
       </CardContent>
@@ -49,14 +49,14 @@ function QuotaBar({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-slate-400">{label}</span>
-        <span className="text-slate-200 font-medium">
+        <span className="text-slate-600">{label}</span>
+        <span className="text-slate-800 font-medium">
           {used.toLocaleString(undefined, { maximumFractionDigits: 2 })} {unit}
           {hasLimit ? ` / ${limit.toLocaleString()} ${usedLabel}` : ' (no limit)'}
         </span>
       </div>
       {hasLimit && (
-        <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+        <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
               isExceeded ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
@@ -100,8 +100,8 @@ export function UsagePage() {
   if (loading && !data) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-white">Usage</h1>
-        <p className="text-slate-400">Loading…</p>
+        <h1 className="text-2xl font-bold text-slate-900">Usage</h1>
+        <p className="text-slate-600">Loading…</p>
       </div>
     );
   }
@@ -125,8 +125,8 @@ export function UsagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Usage</h1>
-        <p className="mt-1 text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">Usage</h1>
+        <p className="mt-1 text-slate-600">
           Usage metrics for your workspace.
           {data?.period && (
             <span className="block mt-1 text-slate-500">
@@ -136,17 +136,17 @@ export function UsagePage() {
         </p>
       </div>
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
 
       {quotaData && (
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-white">Voice quota</CardTitle>
+                <CardTitle className="text-slate-900">Voice quota</CardTitle>
                 <CardDescription>
                   {quotaData.plan ? `Plan: ${quotaData.plan}` : 'No plan set — limits are unlimited'}
                 </CardDescription>
@@ -214,11 +214,11 @@ export function UsagePage() {
       )}
 
       {costData && (
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-slate-400" />
-              <CardTitle className="text-white">Voice cost</CardTitle>
+              <DollarSign className="h-5 w-5 text-slate-600" />
+              <CardTitle className="text-slate-900">Voice cost</CardTitle>
             </div>
             <CardDescription>
               Cost from provider pricing (STT per minute, LLM per token, TTS per character). Same period.
@@ -226,17 +226,17 @@ export function UsagePage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-slate-400 mb-1">Monthly cost</h3>
-              <p className="text-3xl font-semibold text-white">
+              <h3 className="text-sm font-medium text-slate-600 mb-1">Monthly cost</h3>
+              <p className="text-3xl font-semibold text-slate-900">
                 ${costData.workspaceCost.toFixed(4)}
               </p>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-400 mb-2">Cost by provider</h3>
+              <h3 className="text-sm font-medium text-slate-600 mb-2">Cost by provider</h3>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-3">
                   <div className="text-xs text-slate-500 uppercase tracking-wide">STT</div>
-                  <ul className="mt-1 space-y-0.5 text-sm text-slate-200">
+                  <ul className="mt-1 space-y-0.5 text-sm text-slate-800">
                     {Object.entries(costData.costBreakdownByProvider.stt).map(([name, val]) => (
                       <li key={name}>{name}: ${val.toFixed(4)}</li>
                     ))}
@@ -245,9 +245,9 @@ export function UsagePage() {
                     )}
                   </ul>
                 </div>
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-3">
                   <div className="text-xs text-slate-500 uppercase tracking-wide">LLM</div>
-                  <ul className="mt-1 space-y-0.5 text-sm text-slate-200">
+                  <ul className="mt-1 space-y-0.5 text-sm text-slate-800">
                     {Object.entries(costData.costBreakdownByProvider.llm).map(([name, val]) => (
                       <li key={name}>{name}: ${val.toFixed(4)}</li>
                     ))}
@@ -256,9 +256,9 @@ export function UsagePage() {
                     )}
                   </ul>
                 </div>
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-3">
                   <div className="text-xs text-slate-500 uppercase tracking-wide">TTS</div>
-                  <ul className="mt-1 space-y-0.5 text-sm text-slate-200">
+                  <ul className="mt-1 space-y-0.5 text-sm text-slate-800">
                     {Object.entries(costData.costBreakdownByProvider.tts).map(([name, val]) => (
                       <li key={name}>{name}: ${val.toFixed(4)}</li>
                     ))}
@@ -271,7 +271,7 @@ export function UsagePage() {
             </div>
             {costData.costPerCall.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-2">Cost per call</h3>
+                <h3 className="text-sm font-medium text-slate-600 mb-2">Cost per call</h3>
                 <div className="h-[240px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -300,11 +300,11 @@ export function UsagePage() {
         </Card>
       )}
 
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-slate-400" />
-            <CardTitle className="text-white">Current period</CardTitle>
+            <BarChart3 className="h-5 w-5 text-slate-600" />
+            <CardTitle className="text-slate-900">Current period</CardTitle>
           </div>
           <CardDescription>Tracked usage for the current billing period</CardDescription>
         </CardHeader>
@@ -323,11 +323,11 @@ export function UsagePage() {
       </Card>
 
       {voiceData && (
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-slate-400" />
-              <CardTitle className="text-white">Voice usage</CardTitle>
+              <Phone className="h-5 w-5 text-slate-600" />
+              <CardTitle className="text-slate-900">Voice usage</CardTitle>
             </div>
             <CardDescription>
               Per-call voice metering: call minutes, LLM tokens, TTS characters (same period)
@@ -335,41 +335,41 @@ export function UsagePage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-4">
+                <div className="flex items-center gap-2 text-slate-600 text-sm">
                   <Phone className="h-4 w-4" />
                   Call minutes
                 </div>
-                <p className="mt-1 text-2xl font-semibold text-white">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {voiceData.totalCallMinutes.toLocaleString(undefined, { maximumFractionDigits: 2 })} min
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-4">
+                <div className="flex items-center gap-2 text-slate-600 text-sm">
                   <Cpu className="h-4 w-4" />
                   LLM tokens
                 </div>
-                <p className="mt-1 text-2xl font-semibold text-white">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {voiceData.totalLLMTokens.toLocaleString()}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <div className="rounded-lg border border-slate-300 bg-slate-200/50 p-4">
+                <div className="flex items-center gap-2 text-slate-600 text-sm">
                   <Type className="h-4 w-4" />
                   TTS characters
                 </div>
-                <p className="mt-1 text-2xl font-semibold text-white">
+                <p className="mt-1 text-2xl font-semibold text-slate-900">
                   {voiceData.totalTTSCharacters.toLocaleString()}
                 </p>
               </div>
             </div>
             {Object.keys(voiceData.providerUsage).length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-2">Provider usage</h3>
-                <div className="overflow-x-auto rounded-lg border border-slate-700">
+                <h3 className="text-sm font-medium text-slate-600 mb-2">Provider usage</h3>
+                <div className="overflow-x-auto rounded-lg border border-slate-300">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-700 bg-slate-800/80 text-left text-slate-400">
+                      <tr className="border-b border-slate-300 bg-slate-200/80 text-left text-slate-600">
                         <th className="px-3 py-2">Providers (STT | LLM | TTS)</th>
                         <th className="px-3 py-2">Call min</th>
                         <th className="px-3 py-2">LLM tokens</th>
@@ -378,7 +378,7 @@ export function UsagePage() {
                     </thead>
                     <tbody>
                       {Object.entries(voiceData.providerUsage).map(([key, u]) => (
-                        <tr key={key} className="border-b border-slate-800 text-slate-200">
+                        <tr key={key} className="border-b border-slate-200 text-slate-800">
                           <td className="px-3 py-2 font-mono text-xs">{key.replace(/\|/g, ' | ')}</td>
                           <td className="px-3 py-2">{u.callMinutes.toFixed(2)}</td>
                           <td className="px-3 py-2">{u.llmTokens.toLocaleString()}</td>

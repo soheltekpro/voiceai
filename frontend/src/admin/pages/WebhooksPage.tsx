@@ -87,47 +87,47 @@ export function WebhooksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Webhooks</h1>
-        <p className="mt-1 text-slate-400">Send call and tool events to your systems.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Webhooks</h1>
+        <p className="mt-1 text-slate-600">Send call and tool events to your systems.</p>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-800">
           {error}
         </div>
       )}
 
       {secretOnce && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+        <div className="rounded-lg border border-emerald-400/50 bg-emerald-50 p-3 text-sm text-emerald-800">
           <div className="font-medium text-emerald-100">Webhook secret (shown once)</div>
           <div className="mt-1 break-all font-mono text-emerald-100">{secretOnce}</div>
         </div>
       )}
 
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Create webhook</CardTitle>
+          <CardTitle className="text-slate-900">Create webhook</CardTitle>
           <CardDescription>Choose a URL and which events you want delivered.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={create} className="space-y-4">
             <div>
-              <Label className="text-slate-300">URL</Label>
+              <Label className="text-slate-700">URL</Label>
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/webhooks/voiceai"
-                className="mt-1 bg-slate-800 border-slate-700"
+                className="mt-1 bg-slate-200 border-slate-300"
               />
             </div>
 
             <div>
-              <Label className="text-slate-300">Events</Label>
+              <Label className="text-slate-700">Events</Label>
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {COMMON_EVENTS.map((evt) => (
                   <label
                     key={evt}
-                    className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm text-slate-200"
+                    className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50/30 px-3 py-2 text-sm text-slate-800"
                   >
                     <input
                       type="checkbox"
@@ -147,9 +147,9 @@ export function WebhooksPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white">Existing webhooks</CardTitle>
+          <CardTitle className="text-slate-900">Existing webhooks</CardTitle>
           <CardDescription>Secrets are not shown after creation.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -159,13 +159,13 @@ export function WebhooksPage() {
             items.map((w) => (
               <div
                 key={w.id}
-                className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/30 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/30 p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-sm text-white">{w.url}</div>
+                  <div className="truncate text-sm text-slate-900">{w.url}</div>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {w.events.map((e) => (
-                      <span key={e} className="rounded bg-slate-800 px-2 py-0.5 font-mono text-[11px] text-slate-200">
+                      <span key={e} className="rounded bg-slate-200 px-2 py-0.5 font-mono text-[11px] text-slate-800">
                         {e}
                       </span>
                     ))}

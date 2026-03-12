@@ -39,16 +39,16 @@ export function MemoryPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Conversation memory</h1>
-        <p className="mt-1 text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-900">Conversation memory</h1>
+        <p className="mt-1 text-slate-600">
           View stored context for a caller by phone number. Used so the agent can remember previous interactions.
         </p>
       </div>
 
-      <Card className="border-slate-800 bg-slate-900/40">
+      <Card className="border-slate-200 bg-slate-50">
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Phone className="h-5 w-5 text-slate-400" />
+          <CardTitle className="text-slate-900 flex items-center gap-2">
+            <Phone className="h-5 w-5 text-slate-600" />
             Look up caller
           </CardTitle>
           <CardDescription>Enter the caller&apos;s phone number (e.g. +1234567890)</CardDescription>
@@ -60,7 +60,7 @@ export function MemoryPage() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && load()}
-              className="max-w-xs bg-slate-800 border-slate-700 text-white"
+              className="max-w-xs bg-slate-200 border-slate-300 text-slate-900"
             />
             <Button onClick={load} disabled={loading}>
               {loading ? 'Loading…' : 'Load memory'}
@@ -73,24 +73,24 @@ export function MemoryPage() {
       </Card>
 
       {data && (
-        <Card className="border-slate-800 bg-slate-900/40">
+        <Card className="border-slate-200 bg-slate-50">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Brain className="h-5 w-5 text-slate-400" />
+            <CardTitle className="text-slate-900 flex items-center gap-2">
+              <Brain className="h-5 w-5 text-slate-600" />
               Previous call summaries
             </CardTitle>
             <CardDescription>Context the agent will see for this caller</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {data.summary ? (
-              <div className="rounded-lg bg-slate-800/60 p-4 text-sm text-slate-200 whitespace-pre-wrap">
+              <div className="rounded-lg bg-slate-100 p-4 text-sm text-slate-800 whitespace-pre-wrap">
                 {data.summary}
               </div>
             ) : (
-              <p className="text-slate-400 text-sm">No memory yet for this number.</p>
+              <p className="text-slate-600 text-sm">No memory yet for this number.</p>
             )}
             {data.lastInteraction && (
-              <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <div className="flex items-center gap-2 text-slate-600 text-sm">
                 <Calendar className="h-4 w-4" />
                 <span>Last updated: {new Date(data.lastInteraction.updatedAt).toLocaleString()}</span>
               </div>

@@ -7,7 +7,7 @@ export function WebCallPage() {
       <div className="flex items-center gap-4">
         <Link
           to="/admin"
-          className="text-sm text-slate-400 hover:text-slate-200"
+          className="text-sm text-slate-600 hover:text-slate-800"
         >
           ← Back to Dashboard
         </Link>

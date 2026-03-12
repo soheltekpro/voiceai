@@ -162,7 +162,8 @@ def _create_realtime_llm(provider: str | None = None, model: str | None = None, 
             voice=voice or "alloy",
         )
     if p == "GOOGLE":
-        conn_options = APIConnectOptions(timeout=15.0, max_retry=2)
+        # Longer timeout (45s) to reduce "generate_reply timed out waiting for generation_created" with Gemini Live
+        conn_options = APIConnectOptions(timeout=45.0, max_retry=2)
         return google.realtime.RealtimeModel(
             model=model or "gemini-2.5-flash-native-audio-preview-12-2025",
             voice=voice or "Puck",
@@ -273,19 +274,22 @@ async def entrypoint(ctx: JobContext) -> None:
     opening_line: str | None = (job_meta.get("openingLine") or "").strip() or None
     knowledge_base_id: str | None = (job_meta.get("knowledgeBaseId") or "").strip() or None
     call_session_id: str | None = (job_meta.get("callSessionId") or "").strip() or None
+    call_started_at: float = time.time()
 
     # Session userdata: callSessionId for event publishing
     session_userdata: dict[str, Any] = {
         "callSessionId": call_session_id or "",
     }
     # Realtime model handles speech output directly; we do not use session.say() for greetings.
-    # Lower min_interruption_duration so the agent stops sooner when user speaks (helps Gemini feel more responsive to barge-in)
+    # Lower min_interruption_duration so the agent stops sooner when user speaks (helps Gemini feel more responsive to barge-in).
+    # preemptive_generation=False to reduce "generate_reply timed out waiting for generation_created" (known Gemini Live issue).
     try:
         session = AgentSession(
             llm=llm,
             vad=vad,
             userdata=session_userdata,
             min_interruption_duration=0.3,
+            preemptive_generation=False,
         )
     except TypeError:
         session = AgentSession(llm=llm, vad=vad, userdata=session_userdata)
@@ -520,9 +524,37 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # Track token usage (audio in + audio out) for this session
     usage_collector = UsageCollector()
+    last_usage_send_at: list[float] = [0.0]
+    USAGE_SEND_INTERVAL = 2.0  # throttle: send usage to backend at most every 2s
 
     def _on_metrics(ev: MetricsCollectedEvent) -> None:
         _on_metrics_collected(usage_collector, ev, ctx.room)
+        # Send usage to backend incrementally so we have cost/tokens even if user ends call early
+        # (shutdown callback may not complete before process exits)
+        if not call_session_id:
+            return
+        now = time.time()
+        if now - last_usage_send_at[0] < USAGE_SEND_INTERVAL:
+            return
+        try:
+            s = usage_collector.get_summary()
+            in_tok = int(s.llm_input_audio_tokens or 0)
+            out_tok = int(s.llm_output_audio_tokens or 0)
+            if in_tok == 0 and out_tok == 0:
+                return
+            last_usage_send_at[0] = now
+            duration_seconds = max(0, int(now - call_started_at))
+            payload = {
+                "inputTokens": in_tok,
+                "outputTokens": out_tok,
+                "durationSeconds": duration_seconds,
+            }
+            loop = asyncio.get_event_loop()
+            loop.create_task(
+                send_voiceai_event(call_session_id, "usage.updated", payload)
+            )
+        except Exception:
+            pass
 
     session.on("metrics_collected", _on_metrics)
 
@@ -554,6 +586,24 @@ async def entrypoint(ctx: JobContext) -> None:
             )
         except Exception:
             pass  # room may already be disconnecting
+
+        # Also send final usage to backend (incremental updates already sent in _on_metrics).
+        # This ensures we have the latest counts if shutdown runs; if it doesn't (e.g. user hung up),
+        # the last incremental update from metrics_collected is already persisted.
+        if call_session_id:
+            try:
+                duration_seconds = max(0, int(time.time() - call_started_at))
+                await send_voiceai_event(
+                    call_session_id,
+                    "usage.updated",
+                    {
+                        "inputTokens": int(s.llm_input_audio_tokens or 0),
+                        "outputTokens": int(s.llm_output_audio_tokens or 0),
+                        "durationSeconds": duration_seconds,
+                    },
+                )
+            except Exception as e:
+                logger.warning("failed to send final usage.updated to backend: %s", e)
 
     ctx.add_shutdown_callback(_log_final_usage)
 

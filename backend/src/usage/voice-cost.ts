@@ -44,6 +44,18 @@ export function clearPricingCache(): void {
 }
 
 /**
+ * Cost per minute (USD) for a call. Returns null if duration is missing or zero.
+ * Use for both Pipeline and V2V: total cost and duration come from CallSession.
+ */
+export function costPerMinuteUsd(estimatedCostUsd: number | null | undefined, durationSeconds: number | null | undefined): number | null {
+  const cost = estimatedCostUsd != null ? Number(estimatedCostUsd) : null;
+  const sec = durationSeconds != null && durationSeconds > 0 ? durationSeconds : 0;
+  if (cost == null || cost < 0 || sec <= 0) return null;
+  const minutes = sec / 60;
+  return Math.round((cost / minutes) * 1e6) / 1e6;
+}
+
+/**
  * Compute STT, LLM, and TTS cost for a single call usage.
  * STT: audio input minutes × provider per_minute rate.
  * LLM: (input + output) tokens × provider per_token rate.

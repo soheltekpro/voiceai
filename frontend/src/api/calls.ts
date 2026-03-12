@@ -15,6 +15,32 @@ export type CallsListParams = {
   status?: 'ACTIVE' | 'ENDED' | 'ERROR';
 };
 
+export type CallsStatsParams = {
+  agent_id?: string;
+  agentId?: string;
+  status?: 'ACTIVE' | 'ENDED' | 'ERROR';
+};
+
+export type CallsStats = {
+  totalCalls: number;
+  totalDurationSeconds: number;
+  totalMinutes: number;
+  totalCostUsd: number;
+  totalCostInr: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+};
+
+export async function fetchCallsStats(params?: CallsStatsParams): Promise<CallsStats> {
+  const search = new URLSearchParams();
+  if (params?.agent_id) search.set('agent_id', params.agent_id);
+  else if (params?.agentId) search.set('agent_id', params.agentId);
+  if (params?.status) search.set('status', params.status);
+  const qs = search.toString();
+  return apiGet<CallsStats>(`${BASE}/calls/stats${qs ? `?${qs}` : ''}`);
+}
+
 export async function fetchCalls(params?: CallsListParams): Promise<Paginated<Call>> {
   const search = new URLSearchParams();
   if (params?.limit != null) search.set('limit', String(params.limit));

@@ -30,27 +30,27 @@ export function DocumentToolbar({
     : null;
 
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-900/50 px-4 py-2">
+    <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-2">
       <div className="flex items-center gap-3">
         {document && (
           <span
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs font-medium',
               status === 'Completed'
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-amber-500/20 text-amber-400'
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
             )}
           >
             {status}
           </span>
         )}
         {document && (
-          <span className="truncate text-sm text-slate-300">{document.name}</span>
+          <span className="truncate text-sm text-slate-700">{document.name}</span>
         )}
       </div>
       <div className="flex items-center gap-1">
         {canDownload && onDownload && (
-          <Button variant="ghost" size="sm" onClick={onDownload} className="text-slate-400 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={onDownload} className="text-slate-600 hover:text-slate-900">
             <Download className="mr-1.5 h-4 w-4" />
             Download
           </Button>
@@ -61,7 +61,7 @@ export function DocumentToolbar({
             size="sm"
             onClick={onRefresh}
             disabled={refreshing}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-600 hover:text-slate-900"
           >
             <RefreshCw className={cn('mr-1.5 h-4 w-4', refreshing && 'animate-spin')} />
             Refresh

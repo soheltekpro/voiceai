@@ -431,25 +431,25 @@ export function VoiceAgentPhase1() {
   }, []); // run cleanup only on unmount so we don't close the socket when state updates during connect
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page header */}
       <header>
-        <h1 className="text-2xl font-bold text-white">Test Voice Agent</h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Test Voice Agent</h1>
+        <p className="mt-1 text-xs text-slate-600 sm:text-sm">
           Pipeline (STT→LLM→TTS) or Realtime V2V — connect and talk to your agent.
         </p>
       </header>
 
       {/* Two column grid: call widget (left) + transcript (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Left: Call widget — phone-like card */}
-        <div className="rounded-xl border border-slate-700 bg-gradient-to-br from-slate-800 to-slate-900 p-6 shadow-lg">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-lg sm:p-6">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-2">Agent</label>
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
             disabled={connectionState !== 'disconnected'}
-            className="w-full rounded-lg bg-slate-700/80 border border-slate-600 text-slate-200 px-3 py-2 text-sm mb-6"
+            className="w-full rounded-lg bg-white border border-slate-300 text-slate-800 px-3 py-2 text-sm mb-6"
           >
             <option value="">— Select agent —</option>
             {agents.map((a) => (
@@ -465,7 +465,7 @@ export function VoiceAgentPhase1() {
             ) : (
               <Phone className="h-16 w-16 text-slate-500 mb-4" />
             )}
-            <p className="text-sm font-medium text-slate-300 mb-1">
+            <p className="text-sm font-medium text-slate-700 mb-1">
               {connectionState === 'connected'
                 ? 'On call'
                 : connectionState === 'connecting'
@@ -479,7 +479,7 @@ export function VoiceAgentPhase1() {
             </p>
 
             {error && (
-              <div className="w-full mb-4 p-3 rounded-lg bg-red-500/15 border border-red-500/30 text-red-200 text-sm">
+              <div className="w-full mb-4 p-3 rounded-lg bg-red-50 border border-red-400/50 text-red-800 text-sm">
                 {error}
               </div>
             )}
@@ -489,7 +489,7 @@ export function VoiceAgentPhase1() {
                 type="button"
                 onClick={startCall}
                 disabled={connectionState === 'connecting' || !selectedAgentId}
-                className="w-full max-w-xs py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium text-white transition"
+                className="w-full max-w-xs py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-medium text-white transition touch-manipulation min-h-[44px]"
               >
                 Start call
               </button>
@@ -498,8 +498,8 @@ export function VoiceAgentPhase1() {
                 <button
                   type="button"
                   onClick={toggleMic}
-                  className={`py-2.5 px-4 rounded-lg font-medium transition ${
-                    micEnabled ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-slate-200'
+                  className={`py-3 px-4 rounded-lg font-medium transition touch-manipulation min-h-[44px] ${
+                    micEnabled ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-white'
                   }`}
                 >
                   {micEnabled ? 'Mute' : 'Unmute'}
@@ -508,7 +508,7 @@ export function VoiceAgentPhase1() {
                   <button
                     type="button"
                     onClick={sendInterrupt}
-                    className="py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium"
+                    className="py-3 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium touch-manipulation min-h-[44px]"
                     title="Interrupt (barge-in)"
                   >
                     Interrupt
@@ -517,7 +517,7 @@ export function VoiceAgentPhase1() {
                 <button
                   type="button"
                   onClick={disconnect}
-                  className="py-2.5 px-4 rounded-lg bg-slate-600 hover:bg-slate-500 text-slate-200 font-medium"
+                  className="py-3 px-4 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-medium touch-manipulation min-h-[44px]"
                 >
                   End call
                 </button>
@@ -527,14 +527,14 @@ export function VoiceAgentPhase1() {
         </div>
 
         {/* Right: Live transcript panel */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 flex flex-col">
-          <h2 className="text-lg font-semibold text-white">Live Transcript</h2>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 flex flex-col min-h-[200px]">
+          <h2 className="text-lg font-semibold text-slate-900">Live Transcript</h2>
           <p className="text-sm text-slate-500 mt-0.5">Real-time conversation transcription</p>
-          <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg bg-slate-800/50 border border-slate-700/50 p-4 space-y-4">
+          <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-lg bg-slate-200/50 border border-slate-300/50 p-4 space-y-4">
             {lifecycleEvents.length > 0 && (
               <ul className="text-xs space-y-1.5">
                 {lifecycleEvents.map((e, i) => (
-                  <li key={i} className="text-slate-400">
+                  <li key={i} className="text-slate-600">
                     <span className="text-slate-500">{new Date(e.ts).toLocaleTimeString()}</span> {e.name}
                     {e.payload?.text != null && ` "${String(e.payload.text).slice(0, 40)}…"`}
                   </li>
@@ -545,13 +545,13 @@ export function VoiceAgentPhase1() {
               <>
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">You said</p>
-                  <p className="text-sm text-slate-300 rounded bg-slate-700/50 p-2">
+                  <p className="text-sm text-slate-700 rounded bg-slate-700/50 p-2">
                     {transcript || (partialTranscript ? <span className="text-slate-500 italic">{partialTranscript}</span> : '—')}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Agent</p>
-                  <p className="text-sm text-slate-300 rounded bg-slate-700/50 p-2 whitespace-pre-wrap">
+                  <p className="text-sm text-slate-700 rounded bg-slate-700/50 p-2 whitespace-pre-wrap">
                     {agentText || '—'}
                   </p>
                 </div>
@@ -568,8 +568,8 @@ export function VoiceAgentPhase1() {
       </div>
 
       {/* Bottom: Tips for better calls */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-2">Tips for better calls</h3>
+      <section className="rounded-xl border border-slate-200 bg-slate-100/30 p-4">
+        <h3 className="text-sm font-semibold text-slate-700 mb-2">Tips for better calls</h3>
         <ul className="text-sm text-slate-500 space-y-1 list-disc list-inside">
           <li>Use a quiet environment and a clear microphone.</li>
           <li>Speak in full sentences so the agent can respond accurately.</li>
