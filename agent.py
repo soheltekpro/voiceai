@@ -22,7 +22,7 @@ load_dotenv()
 
 import httpx
 from livekit import agents
-from livekit.agents import AgentServer, AgentSession, Agent, JobContext
+from livekit.agents import AgentServer, AgentSession, Agent, JobContext, ChatContext, ChatMessage
 from livekit.agents.log import logger
 from livekit.agents.metrics import RealtimeModelMetrics
 from livekit.agents.metrics.usage_collector import UsageCollector
@@ -63,6 +63,35 @@ async def retrieve_rag_chunks(query: str, knowledge_base_id: str, limit: int = 5
             last_err = e
             break
     return []
+
+
+async def _summarize_conversation(items_text: list[str]) -> str:
+    """Summarize conversation snippets into 1–2 concise sentences. Uses Gemini generateContent if GOOGLE_API_KEY is set."""
+    if not items_text:
+        return ""
+    combined = "\n".join(s[:200] for s in items_text if s.strip())[:3000]
+    if not combined.strip():
+        return ""
+    api_key = (os.getenv("GOOGLE_API_KEY") or "").strip()
+    if not api_key:
+        return combined[:500]  # fallback: truncate
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    payload = {
+        "contents": [{"parts": [{"text": f"Summarize in 1–2 short sentences (conversation context only):\n\n{combined}"}]}],
+        "generationConfig": {"maxOutputTokens": 150, "temperature": 0.2},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload, params={"key": api_key})
+            resp.raise_for_status()
+            data = resp.json()
+            for c in data.get("candidates", []):
+                for p in c.get("content", {}).get("parts", []):
+                    if "text" in p:
+                        return (p["text"] or "").strip() or combined[:500]
+    except Exception:
+        pass
+    return combined[:500]
 
 
 async def send_voiceai_event(
@@ -141,6 +170,43 @@ SYSTEM_INSTRUCTION = (
     "Always speak and respond in English only; do not use any other language."
 )
 
+# --- Conversation compaction and history limits (keep latency ~200–500 ms) ---
+MAX_HISTORY_TURNS = 6
+"""Maximum number of conversation turns (user+assistant pairs) to keep in context. Trim older to avoid growing latency."""
+TURNS_AFTER_SUMMARY = 4
+"""When summarizing, keep this many recent turns after the summary block."""
+SESSION_COMPACT_INTERVAL = 20
+"""Seconds of session time between compaction attempts (summarize + trim + sync to realtime model)."""
+TRIM_INTERVAL = 8
+"""Seconds between trim-only passes (keep history at most MAX_HISTORY_TURNS*2 items between full compactions)."""
+SMALL_TALK_WORDS = (
+    "ok",
+    "okay",
+    "ठीक",
+    "thanks",
+    "thank you",
+    "yes",
+    "yeah",
+    "hmm",
+    "go on",
+    "no thanks",
+    "ठीक है",
+    "हां",
+    "मैं ठीक हूं",
+    "i'm fine",
+    "im fine",
+)
+SMALL_TALK_MAX_LEN = 15
+"""Skip RAG for transcripts shorter than this (characters) or matching SMALL_TALK_WORDS."""
+LATENCY_WARN_MS = 800
+"""Log a pipeline latency warning if response delay exceeds this many milliseconds."""
+
+# --- Partial-trigger (Vapi/Retell-style): trigger generation on stable partials for low latency ---
+PARTIAL_TRIGGER_LENGTH = 10
+"""Minimum partial transcript length (chars) before we consider triggering generation. Trigger earlier than final for 200–400 ms partial→audio."""
+PARTIAL_STABILITY_DELAY = 0.15
+"""Seconds to wait for partial to stay unchanged before calling generate_reply. Ensures transcript is stable and reduces false triggers."""
+
 
 def _create_realtime_llm(provider: str | None = None, model: str | None = None, voice: str | None = None):
     """Create the realtime LLM from agent config (provider, model, voice) or fall back to AI_PROVIDER env."""
@@ -165,7 +231,7 @@ def _create_realtime_llm(provider: str | None = None, model: str | None = None, 
         # Longer timeout (45s) to reduce "generate_reply timed out waiting for generation_created" with Gemini Live
         conn_options = APIConnectOptions(timeout=45.0, max_retry=2)
         return google.realtime.RealtimeModel(
-            model=model or "gemini-2.5-flash-native-audio-preview-12-2025",
+            model=model or "gemini-2.0-flash-live-001",
             voice=voice or "Puck",
             instructions=SYSTEM_INSTRUCTION,
             language="en-US",
@@ -266,6 +332,15 @@ async def entrypoint(ctx: JobContext) -> None:
     v2v_model = (job_meta.get("v2vModel") or "").strip() or None
     v2v_voice = (job_meta.get("v2vVoice") or "").strip() or None
     llm = _create_realtime_llm(provider=v2v_provider, model=v2v_model, voice=v2v_voice)
+
+    # Log effective V2V config (provider and model) for debugging and ops
+    _p = (v2v_provider or "").strip().upper() or os.getenv("AI_PROVIDER", "OPENAI").strip().upper()
+    if _p == "GEMINI":
+        _p = "GOOGLE"
+    _m = getattr(llm, "model", None) or v2v_model or "(default)"
+    _v = v2v_voice or "(default)"
+    logger.info("V2V agent config: provider=%s model=%s voice=%s", _p, _m, _v)
+
     vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
 
     # V2V: read systemPrompt, openingLine, knowledgeBaseId from dispatch metadata (set by backend from agent config)
@@ -282,17 +357,20 @@ async def entrypoint(ctx: JobContext) -> None:
     }
     # Realtime model handles speech output directly; we do not use session.say() for greetings.
     # Lower min_interruption_duration so the agent stops sooner when user speaks (helps Gemini feel more responsive to barge-in).
-    # preemptive_generation=False to reduce "generate_reply timed out waiting for generation_created" (known Gemini Live issue).
+    # preemptive_generation=True: start generating before transcript.final for lower latency (model can begin while user is still speaking).
     try:
         session = AgentSession(
             llm=llm,
             vad=vad,
             userdata=session_userdata,
             min_interruption_duration=0.3,
-            preemptive_generation=False,
+            preemptive_generation=True,
         )
     except TypeError:
         session = AgentSession(llm=llm, vad=vad, userdata=session_userdata)
+
+    # When True, the framework triggers generate_reply on partials; we must not call it ourselves or we get double-trigger and timeout.
+    preemptive_generation_enabled = True
 
     # IMPORTANT: do not modify the agent-configured systemPrompt. The realtime model should receive it verbatim.
     base_instructions = user_prompt if user_prompt else SYSTEM_INSTRUCTION
@@ -309,28 +387,15 @@ async def entrypoint(ctx: JobContext) -> None:
 
     def should_run_rag(text: str) -> bool:
         """Return False for smalltalk/short phrases to avoid excessive embedding calls and rate limits."""
-        if not text:
+        if not text or not text.strip():
             return False
         t = text.lower().strip()
-        smalltalk = [
-            "ok",
-            "okay",
-            "yes",
-            "yeah",
-            "hmm",
-            "go on",
-            "no thanks",
-            "ठीक है",
-            "हां",
-            "मैं ठीक हूं",
-            "thanks",
-            "thank you",
-            "i'm fine",
-            "im fine",
-        ]
-        if t in smalltalk:
+        if len(text) < SMALL_TALK_MAX_LEN:
             return False
-        if len(text) < 15:
+        if t in SMALL_TALK_WORDS:
+            return False
+        # Also skip if transcript is only small-talk words (e.g. "ठीक है")
+        if any(t == w or t.startswith(w + " ") for w in SMALL_TALK_WORDS):
             return False
         return True
 
@@ -363,12 +428,16 @@ async def entrypoint(ctx: JobContext) -> None:
         """Background: retrieve chunks and store in rag_memory for the next turn. Never blocks reply."""
         rag_last_run[0] = time.time()
         try:
-            chunks = await retrieve_rag_chunks(query, knowledge_base_id, limit=5)
+            chunks = await retrieve_rag_chunks(query, knowledge_base_id, limit=3)
         except Exception:
             return
         if not chunks:
             return
-        context = "\n".join((c.get("content") or "").strip() for c in chunks if c.get("content"))
+        context = "\n".join(
+            (c.get("content") or "")[:300].strip()
+            for c in chunks
+            if c.get("content")
+        )
         if not context.strip():
             return
         rag_memory[0] = context.strip()
@@ -381,6 +450,7 @@ async def entrypoint(ctx: JobContext) -> None:
         payload: dict[str, Any] = {"text": transcript, "timestamp": ts_ms}
         if is_final and transcript:
             user_has_spoken[0] = True
+            latency_final_transcript_time[0] = time.time()
 
         # Inject stored RAG from previous turn at start of this turn, then clear so it's used only once.
         if transcript and rag_memory[0]:
@@ -410,9 +480,19 @@ async def entrypoint(ctx: JobContext) -> None:
     has_greeted: list[bool] = [False]
     user_has_spoken: list[bool] = [False]
     early_reply_triggered: list[bool] = [False]
+    turn_count: list[int] = [0]
+
+    # Partial stability state: track latest partial so stable_trigger can verify transcript didn't change.
+    last_partial_text: list[str] = [""]
+    last_partial_time: list[float] = [0.0]
+
+    # Latency debug: timestamps for pipeline timing (partial trigger, final transcript, first audio out).
+    latency_partial_trigger_time: list[float] = [0.0]
+    latency_final_transcript_time: list[float] = [0.0]
+    latency_first_audio_time: list[float] = [0.0]
 
     def _interrupt_agent() -> None:
-        """Stop agent speech. Only call when agent is speaking and user is barging in."""
+        """Stop agent speech. Only call when agent is actually speaking and user is barging in (prevents self-interruption)."""
         interrupt_fn = getattr(session, "interrupt", None)
         if callable(interrupt_fn):
             try:
@@ -428,30 +508,59 @@ async def entrypoint(ctx: JobContext) -> None:
                 pass
 
     def _on_user_transcribed(ev: Any) -> None:
-        """Sync wrapper: interrupt only if agent is speaking (barge-in); trigger early reply on partials; run async RAG/events."""
+        """Sync wrapper: trigger reply on stable partials (Vapi/Retell-style); run async RAG/events. Interrupt only via user_state_changed."""
         transcript = (getattr(ev, "transcript", None) or "").strip()
         is_final = getattr(ev, "is_final", False)
-        # Mark user has spoken on any transcript with text (partial or final) so we don't interrupt
-        # when the model starts responding during partials (Gemini realtime responds early).
+
+        # Track partial stability: update on every partial so stable_trigger can verify transcript didn't change.
+        if transcript and not is_final:
+            last_partial_text[0] = transcript
+            last_partial_time[0] = time.time()
+
+        # Mark user has spoken on any transcript with text (partial or final).
         if transcript:
             if not user_has_spoken[0]:
                 user_has_spoken[0] = True
-        if agent_speaking[0]:
-            _interrupt_agent()
-        # Start reply only once per user turn on meaningful partial transcripts (Vapi/Ulei-style).
-        # generate_reply() returns a SpeechHandle, not a coroutine; do not use create_task or await.
-        if (
-            not agent_speaking[0]
-            and not early_reply_triggered[0]
-            and transcript
-            and len(transcript) > 6
-            and not is_final
-        ):
-            try:
-                session.generate_reply()
-                early_reply_triggered[0] = True
-            except Exception:
-                pass
+
+        # Prevent multiple generate_reply calls per turn; only one reply per user turn.
+        if early_reply_triggered[0]:
+            asyncio.create_task(_on_user_transcribed_async(ev))
+            return
+
+        # With preemptive_generation=True the framework already calls generate_reply on partials. We must not call it
+        # ourselves or we get two in flight and one times out waiting for generation_created.
+        if preemptive_generation_enabled:
+            # Only record partial time for latency logging; do not call generate_reply (framework does it).
+            if (
+                not agent_speaking[0]
+                and transcript
+                and not is_final
+                and len(transcript) > PARTIAL_TRIGGER_LENGTH
+            ):
+                latency_partial_trigger_time[0] = time.time()
+        else:
+            # Stable partial trigger when framework is not preemptive: call generate_reply after stability delay.
+            if (
+                not agent_speaking[0]
+                and not early_reply_triggered[0]
+                and transcript
+                and not is_final
+                and len(transcript) > PARTIAL_TRIGGER_LENGTH
+            ):
+
+                async def stable_trigger(expected_text: str) -> None:
+                    await asyncio.sleep(PARTIAL_STABILITY_DELAY)
+                    if last_partial_text[0] != expected_text or early_reply_triggered[0]:
+                        return
+                    try:
+                        latency_partial_trigger_time[0] = time.time()
+                        session.generate_reply()
+                        early_reply_triggered[0] = True
+                    except Exception:
+                        pass
+
+                asyncio.create_task(stable_trigger(transcript))
+
         asyncio.create_task(_on_user_transcribed_async(ev))
 
     def _on_user_state_changed(ev: Any) -> None:
@@ -459,16 +568,55 @@ async def entrypoint(ctx: JobContext) -> None:
         new_state = getattr(ev, "new_state", None) or (ev.get("new_state") if isinstance(ev, dict) else None)
         if new_state == "speaking" and agent_speaking[0]:
             _interrupt_agent()
+            # Reset turn state on barge-in so the next user utterance can trigger generation (avoids stuck state and generate_reply timeout).
+            early_reply_triggered[0] = False
+            latency_partial_trigger_time[0] = 0.0
 
     def _on_agent_state_changed(ev: Any) -> None:
         """Track when agent is speaking so we only interrupt on barge-in, not when user is speaking normally."""
         new_state = getattr(ev, "new_state", None) or (ev.get("new_state") if isinstance(ev, dict) else None)
         agent_speaking[0] = new_state == "speaking"
+
+        # Reset turn state when agent finishes speaking so the next user turn can trigger generation (fixes repeated/old answers).
+        if new_state == "idle":
+            early_reply_triggered[0] = False
+            latency_partial_trigger_time[0] = 0.0
+            turn_count[0] += 1
+            if turn_count[0] % 4 == 0:
+                _trim_history_only()
+
         if new_state == "speaking":
+            latency_first_audio_time[0] = time.time()
+            # Latency debug: log both partial_trigger→first_audio and final_transcript→first_audio
+            first_audio = latency_first_audio_time[0]
+            delay_final_ms = (first_audio - latency_final_transcript_time[0]) * 1000 if latency_final_transcript_time[0] > 0 else 0.0
+            delay_partial_ms = (first_audio - latency_partial_trigger_time[0]) * 1000 if latency_partial_trigger_time[0] > 0 else 0.0
+            logger.debug(
+                "pipeline latency: partial_trigger=%.3f final_transcript=%.3f first_audio=%.3f delay_partial_ms=%.0f delay_final_ms=%.0f",
+                latency_partial_trigger_time[0],
+                latency_final_transcript_time[0],
+                first_audio,
+                delay_partial_ms,
+                delay_final_ms,
+            )
+            if latency_final_transcript_time[0] > 0:
+                if delay_final_ms > LATENCY_WARN_MS:
+                    logger.warning(
+                        "[pipeline latency warning] Response slower than expected (final→audio %.0f ms)",
+                        delay_final_ms,
+                    )
+                latency_final_transcript_time[0] = 0.0  # reset so we don't double-count
+            if delay_partial_ms > 0 and delay_partial_ms > LATENCY_WARN_MS:
+                logger.warning(
+                    "[pipeline latency warning] Response slower than expected (partial→audio %.0f ms)",
+                    delay_partial_ms,
+                )
+            # Reset partial trigger timestamp after logging so future turns don't show huge delay_ms from previous turn.
+            latency_partial_trigger_time[0] = 0.0
             if not has_greeted[0]:
                 has_greeted[0] = True
-            elif has_greeted[0] and not user_has_spoken[0]:
-                _interrupt_agent()
+            # Do NOT interrupt here: only interrupt on user barge-in (when agent_speaking and user is speaking),
+            # to prevent self-interruption / cancelling our own reply.
 
     try:
         session.on("user_input_transcribed", _on_user_transcribed)
@@ -563,14 +711,85 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(room=ctx.room, agent=assistant)
 
     # Gemini realtime does not auto-start; trigger first reply so the model produces the greeting.
+    # Safe generation guard: only one greeting trigger per session.
     if not greeting_triggered[0]:
         greeting_triggered[0] = True
         try:
-            gen_reply = getattr(session, "generate_reply", None)
-            if callable(gen_reply):
-                gen_reply()
+            if early_reply_triggered[0]:
+                pass  # already triggered (e.g. by partial); skip greeting
+            else:
+                gen_reply = getattr(session, "generate_reply", None)
+                if callable(gen_reply):
+                    gen_reply()
         except Exception:
             pass
+
+    # --- Conversation compaction: limit history and periodically summarize to keep latency constant ---
+    last_compact_at: list[float] = [call_started_at]
+
+    def _trim_history_only() -> None:
+        """Trim session history to last MAX_HISTORY_TURNS*2 items and sync to realtime session. No summarization."""
+        try:
+            history = session.history
+            items = list(history.items)
+            max_items = MAX_HISTORY_TURNS * 2
+            if len(items) <= max_items:
+                return
+            history.items = items[-max_items:]
+            activity = getattr(session, "_activity", None)
+            if activity and hasattr(activity, "update_chat_ctx"):
+                loop = asyncio.get_event_loop()
+                loop.create_task(activity.update_chat_ctx(history))
+        except Exception:
+            pass
+
+    async def _compact_conversation() -> None:
+        """Trim history to MAX_HISTORY_TURNS; if over limit, summarize older and keep summary + last TURNS_AFTER_SUMMARY turns. Sync to realtime session."""
+        try:
+            if time.time() - last_compact_at[0] < SESSION_COMPACT_INTERVAL:
+                return
+            last_compact_at[0] = time.time()
+            history = session.history
+            items = list(history.items)
+            n = len(items)
+            max_items = MAX_HISTORY_TURNS * 2
+            if n <= max_items:
+                return
+            # n > max_items: either trim to last max_items or summarize older + keep last TURNS_AFTER_SUMMARY turns
+            keep_count = TURNS_AFTER_SUMMARY * 2
+            if n > keep_count and n > max_items:
+                older = items[: -keep_count]
+                older_text = [_message_text(m) for m in older if isinstance(m, ChatMessage)]
+                older_text = [t for t in older_text if t and t.strip()]
+                if older_text:
+                    summary = await _summarize_conversation(older_text)
+                    summary_msg = ChatMessage(role="system", content=[f"Conversation Summary: {summary}"])
+                    new_items = [summary_msg] + items[-keep_count:]
+                else:
+                    new_items = items[-max_items:]
+            else:
+                new_items = items[-max_items:]
+            history.items = new_items
+            activity = getattr(session, "_activity", None)
+            if activity and hasattr(activity, "update_chat_ctx"):
+                await activity.update_chat_ctx(history)
+        except Exception as e:
+            logger.debug("compaction skipped or failed: %s", e)
+
+    async def _compaction_loop() -> None:
+        """Trim every TRIM_INTERVAL; full compaction (summarize + trim) every SESSION_COMPACT_INTERVAL."""
+        try:
+            while ctx.room and ctx.room.isconnected():
+                await asyncio.sleep(TRIM_INTERVAL)
+                _trim_history_only()
+                if time.time() - last_compact_at[0] >= SESSION_COMPACT_INTERVAL:
+                    await _compact_conversation()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
+    compaction_task: asyncio.Task[None] | None = asyncio.create_task(_compaction_loop())
 
     async def _log_final_usage() -> None:
         s = usage_collector.get_summary()
@@ -604,6 +823,13 @@ async def entrypoint(ctx: JobContext) -> None:
                 )
             except Exception as e:
                 logger.warning("failed to send final usage.updated to backend: %s", e)
+
+        if compaction_task is not None and not compaction_task.done():
+            compaction_task.cancel()
+            try:
+                await compaction_task
+            except asyncio.CancelledError:
+                pass
 
     ctx.add_shutdown_callback(_log_final_usage)
 

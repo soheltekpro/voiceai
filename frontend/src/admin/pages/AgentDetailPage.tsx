@@ -381,7 +381,7 @@ export function AgentDetailPage() {
             <Link
               to="/admin/web-call"
               state={{ agentId }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-900 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors"
             >
               <Phone className="h-4 w-4" />
               Place Call
@@ -390,7 +390,7 @@ export function AgentDetailPage() {
               type="button"
               onClick={save}
               disabled={saving || !agent}
-              className="px-5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-sm font-semibold text-slate-900 transition-colors"
+              className="px-5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-sm font-semibold text-white transition-colors"
             >
               {saving ? 'Saving…' : 'Save changes'}
             </button>
